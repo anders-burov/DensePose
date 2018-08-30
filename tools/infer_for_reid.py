@@ -81,6 +81,13 @@ def parse_args():
     parser.add_argument(
         'im_or_folder', help='image or folder of images', default=None
     )
+    parser.add_argument(
+        '--throttle',
+        dest='throttle',
+        help='Throttling for my insufficiently powered eGPU.',
+        default=0.0,
+        type=float
+    )
     if len(sys.argv) == 1:
         parser.print_help()
         sys.exit(1)
@@ -140,7 +147,7 @@ def main(args):
 
     logger.info(im_list)
     logger.info("-----The above is \"im_list\" variable ------------------------------------")
-    # exit()
+    t_start = time.time()
     for i, im_name in enumerate(im_list): 
         # if i > 2:
         #     logger.info('debug!')
@@ -185,6 +192,9 @@ def main(args):
             thresh=0.7,
             kp_thresh=2
         )
+
+        time.sleep(args.throttle)
+        logger.info('{}s elapsed.'.format(time.time() - t_start))
     
 
 
