@@ -24,6 +24,9 @@ build/
 !challenge/2018_COCO_DensePose/example_results.json
 
 *.DS_Store
+
+person_reid_data/*
+
 # Dataset symlinks
 detectron/datasets/data/*
 !detectron/datasets/data/README.md
