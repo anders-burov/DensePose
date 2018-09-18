@@ -7,6 +7,11 @@ from sklearn.metrics.pairwise import pairwise_distances
 import sklearn
 print(sklearn.__file__)
 
+
+print max([1,2,3])
+
+exit()
+
 train_loss_record= [99, 34, 0.8]
 
 fig = plt.figure()

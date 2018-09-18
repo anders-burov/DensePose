@@ -48,6 +48,17 @@ def two_margin_cosine_embedding_loss(input1, input2, target, pos_margin=0.0, neg
     loss = torch.sum(loss) / (1.0 * target.shape[0])
     return loss
 
+def test_two_margin_cosine_embedding_loss():
+    for repeat in range(100):
+        i1 = torch.randn(10, 2)  * torch.randint(2, 100, (10,2))
+        i2 = torch.randn(10, 2) * torch.randint(2, 100, (10,2))
+        y = torch.randint(0, 2, (10,))
+        l2 = two_margin_cosine_embedding_loss(i1, i2, y)
+        loss1 = torch.nn.CosineEmbeddingLoss()
+        y[y < 0.5] = -1
+        l1 = loss1(i1, i2, y)
+        d = l2 - l1
+        assert(np.abs(d.numpy()) < 1e-6)
 
 class ContrastiveLoss(torch.nn.Module):
     """
@@ -61,18 +72,7 @@ class ContrastiveLoss(torch.nn.Module):
         elif option == 'cosine':
             self.loss = torch.nn.CosineEmbeddingLoss(margin=margin) # https://pytorch.org/docs/stable/nn.html#torch.nn.CosineEmbeddingLoss
         elif option == 'two margin cosine':
-            # Test:
-            for repeat in range(100):
-                i1 = torch.randn(10, 2)  * torch.randint(2, 100, (10,2))
-                i2 = torch.randn(10, 2) * torch.randint(2, 100, (10,2))
-                y = torch.randint(0, 2, (10,))
-                l2 = two_margin_cosine_embedding_loss(i1, i2, y)
-                loss1 = torch.nn.CosineEmbeddingLoss()
-                y[y < 0.5] = -1
-                l1 = loss1(i1, i2, y)
-                d = l2 - l1
-                assert(np.abs(d.numpy()) < 1e-6)
-            # assign:
+            test_two_margin_cosine_embedding_loss() # quick test
             self.pos_margin = pos_margin
             self.neg_margin = neg_margin
         else:
@@ -124,12 +124,15 @@ def scores(embeds1, embeds2, metric):
         raise NotImplementedError
 
 
-def plot_scores(genuines, imposters, title, n_bins=100):
+def plot_scores(genuines, imposters, title, bin_width):
     fig = plt.figure()
     ax = fig.gca()
     plt.title(title)
-    ax.hist(genuines, bins=n_bins, alpha = 0.5)
-    ax.hist(imposters, bins=int(n_bins*1.2), color='r', alpha = 0.3)
+    max_score = max(max(genuines), max(imposters))
+    min_score = min(min(genuines), min(imposters))
+    bins = np.arange(min_score, max_score + bin_width, bin_width)
+    ax.hist(genuines, bins=bins, color='g', alpha = 0.8)
+    ax.hist(imposters, bins=bins, color='r', alpha = 0.4)
     return fig, plt
 
 
@@ -295,7 +298,7 @@ if __name__ == '__main__':
 
     # argparse:
     overfit = True
-    epochs = 100
+    epochs = 200
     batch_size = 3 #TODO 32  # take it as number of identities in a mini-batch. If 8 identities, there'll be 16 (8 x 2) pairs - 8 same pairs, 8 diff pairs. E.g. Jane-jane pair (same) , Jane-Tom pair (diff), Ben-Ben pair (same), Ben-Aaron pair (diff), ...
     plot_training_metric = True
     plot_loss = True
@@ -308,8 +311,8 @@ if __name__ == '__main__':
                                                             denseposeoutput_test_dir='/data/IUV-densepose/MSMT17_V1/test')
     net = resnet_custom.resnet18(input_channels=24*3, num_classes=256)
     net = Siamese_Net(net)
-    net = net.to(device)  # yes! must re-assign
-    contrastive_loss = ContrastiveLoss(option='two margin cosine', pos_margin=0.1, neg_margin=0.2)
+    net = net.to(device)
+    contrastive_loss = ContrastiveLoss(option='two margin cosine', pos_margin=0.1, neg_margin=0.4)
     distance_type = 'cosine'
     # contrastive_loss = ContrastiveLoss(option='cosine')
     # distance_type = 'cosine'
@@ -320,6 +323,7 @@ if __name__ == '__main__':
 
     train_loss_record = []
     val_loss_record = []
+    most_info_in_an_input_so_far = 0.03 * (24 * 224 * 224 * 3) # 224 is h,w accepted into net. init.
 
     for epoch in range(epochs):
         if not overfit:
@@ -345,16 +349,6 @@ if __name__ == '__main__':
                 split2 = chips[int(len(chips)/2) : ]
                 S1 = combined_IUVstack_from_multiple_chips(dataload, pid=pidstr, chip_paths=split1, trainortest='train', combine_mode='average v2')
                 S2 = combined_IUVstack_from_multiple_chips(dataload, pid=pidstr, chip_paths=split2, trainortest='train', combine_mode='average v2')
-                
-                # S1 = preprocess_IUV_stack(S1, device)
-                # S2 = preprocess_IUV_stack(S2, device)
-                # S1 = S1[:, 16:256-16, 16:256-16, :] # Crop to 24x224x224x3
-                # S2 = S2[:, 16:256-16, 16:256-16, :] 
-                # S1 = normalize_to_reals_0to1(S1)    # Normalize
-                # S2 = normalize_to_reals_0to1(S2)
-                # S1 = torch.Tensor(S1); S2 = torch.Tensor(S2) # Convert to torch tensors
-                # S1 = S1.to(device); S2 = S2.to(device)
-                # S1 = S1.view(24*3, 224, 224); S2 = S2.view(24*3, 224, 224)
                 batch_of_IUV_stacks.append( (S1.copy(), S2.copy()) )
             #print('Done compute IUV stacks')
             input1s = []; input2s = []; targets = []
@@ -362,9 +356,11 @@ if __name__ == '__main__':
                 ######## Same person pair ########
                 S1 = batch_of_IUV_stacks[person][0]
                 S2 = batch_of_IUV_stacks[person][1]
-                # mask = get_intersection(S1, S2)          # intersect
-                # S1 = apply_mask_to_IUVstack(S1, mask)
-                # S2 = apply_mask_to_IUVstack(S2, mask)
+                mask = get_intersection(S1, S2)          # intersect
+                most_info_in_an_input_so_far = max(np.sum(mask), most_info_in_an_input_so_far) # update
+                print('% IUV filled: ', 1.0 * np.sum(mask) / most_info_in_an_input_so_far)
+                S1 = apply_mask_to_IUVstack(S1, mask)
+                S2 = apply_mask_to_IUVstack(S2, mask)
                 S1 = preprocess_IUV_stack(S1, device)
                 S2 = preprocess_IUV_stack(S2, device)
                 input1s.append(S1); input2s.append(S2); targets.append(1)
@@ -375,9 +371,11 @@ if __name__ == '__main__':
                 assert(person != another_person) # prevent edge cases like 1 person only in batch.
                 S1 = batch_of_IUV_stacks[person][random.randint(0,1)]
                 S2 = batch_of_IUV_stacks[another_person][random.randint(0,1)]
-                # mask = get_intersection(S1, S2)          # intersect
-                # S1 = apply_mask_to_IUVstack(S1, mask)
-                # S2 = apply_mask_to_IUVstack(S2, mask)
+                mask = get_intersection(S1, S2)          # intersect
+                most_info_in_an_input_so_far = max(np.sum(mask), most_info_in_an_input_so_far) # update
+                print('% IUV filled: ', 1.0 * np.sum(mask) / most_info_in_an_input_so_far)
+                S1 = apply_mask_to_IUVstack(S1, mask)
+                S2 = apply_mask_to_IUVstack(S2, mask)
                 S1 = preprocess_IUV_stack(S1, device)
                 S2 = preprocess_IUV_stack(S2, device)
                 input1s.append(S1); input2s.append(S2); targets.append(0)
@@ -403,10 +401,11 @@ if __name__ == '__main__':
             train_loss_batches.append(loss.detach().numpy())
 
             if plot_training_metric:
-                assert(output1s.shape[0] % 2.0 == 0)
-                print(output1s[:3,:].shape)#s; exit()
-                n_embeds = int(output1s.shape[0] / 2.0)
-                _, geniune_scores, imposter_scores = scores(output1s[:n_embeds,:].detach().numpy(), output2s[:n_embeds,:].detach().numpy(), distance_type)
+                embeds1 = output1s[targets > 0.5,:].detach().numpy()
+                embeds2 = output2s[targets > 0.5,:].detach().numpy()
+                _, geniune_scores, imposter_scores = scores(embeds1, embeds2, distance_type)
+                print('G', geniune_scores)
+                print('IMP', imposter_scores)
                 fig, plt = plot_scores(geniune_scores, imposter_scores, 'Scores')
                 fig.savefig('tr-scores.jpg')
                 plt.close(fig)
