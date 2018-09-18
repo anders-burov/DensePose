@@ -297,20 +297,23 @@ if __name__ == '__main__':
     # Injecting intersection suffiency check.   IUV utils > intersection check & n_elements_can_hold_info.  Basically redo if cannot find sufficient intersection.
 
     # argparse:
-    overfit = True
-    epochs = 200
-    batch_size = 3 #TODO 32  # take it as number of identities in a mini-batch. If 8 identities, there'll be 16 (8 x 2) pairs - 8 same pairs, 8 diff pairs. E.g. Jane-jane pair (same) , Jane-Tom pair (diff), Ben-Ben pair (same), Ben-Aaron pair (diff), ...
+    overfit = False #True
+    epochs = 5000
+    batch_size = 16 # take it as number of identities in a mini-batch. If 8 identities, there'll be 16 (8 x 2) pairs - 8 same pairs, 8 diff pairs. E.g. Jane-jane pair (same) , Jane-Tom pair (diff), Ben-Ben pair (same), Ben-Aaron pair (diff), ...
     plot_training_metric = True
     plot_loss = True
-
+    epochs_between_saves = 50
     use_cuda = torch.cuda.is_available()
     device = torch.device("cuda" if use_cuda else "cpu")
     dataload = msmt17_v1_utils.MSMT17_V1_Load_Data_Utils(images_train_dir='/data/MSMT17_V1/train', 
                                                             images_test_dir='/data/MSMT17_V1/test', 
                                                             denseposeoutput_train_dir='/data/IUV-densepose/MSMT17_V1/train', 
                                                             denseposeoutput_test_dir='/data/IUV-densepose/MSMT17_V1/test')
+    load_net_path = '' #'net-ep-2.chkpt'
     net = resnet_custom.resnet18(input_channels=24*3, num_classes=256)
     net = Siamese_Net(net)
+    if load_net_path:
+        net.load_state_dict(torch.load(load_net_path))
     net = net.to(device)
     contrastive_loss = ContrastiveLoss(option='two margin cosine', pos_margin=0.1, neg_margin=0.4)
     distance_type = 'cosine'
@@ -406,7 +409,7 @@ if __name__ == '__main__':
                 _, geniune_scores, imposter_scores = scores(embeds1, embeds2, distance_type)
                 print('G', geniune_scores)
                 print('IMP', imposter_scores)
-                fig, plt = plot_scores(geniune_scores, imposter_scores, 'Scores')
+                fig, plt = plot_scores(geniune_scores, imposter_scores, 'Scores', bin_width=0.05)
                 fig.savefig('tr-scores.jpg')
                 plt.close(fig)
             
@@ -424,5 +427,8 @@ if __name__ == '__main__':
             fig.savefig('loss.jpg')
             plt.close(fig)
         
+        if (epoch + 1) % epochs_between_saves == 0 or True:
+            torch.save(net.state_dict(), 'net-ep-{}.chkpt'.format(epoch+1))
+
         # for k epochs, run 1 validation.
         # save
