@@ -39,7 +39,8 @@ def two_margin_cosine_embedding_loss(input1, input2, target, pos_margin=0.0, neg
     #     input1 & input2 are shaped (n_samples, dimensions)
     #     target is shaped (n_samples,). Either 1 or 0. 1 is positive/similar pair. 0 is negative/dissimilar pair.
     D = torch.nn.functional.cosine_similarity(input1, input2)
-    zeroes = torch.zeros(target.shape[0])
+    device = D.device
+    zeroes = torch.zeros(target.shape[0]).to(device)
     D_pos = 1.0 - pos_margin - D
     D_neg = D - neg_margin
     Z_D_pos = torch.stack([zeroes, D_pos], dim=1)
@@ -251,6 +252,8 @@ import torch.optim as optim
 import os
 from sklearn.metrics.pairwise import pairwise_distances
 import matplotlib.pyplot as plt
+import argparse
+import pickle
 from IUV_stack_utils import *  #TODO
 
 
@@ -293,18 +296,28 @@ def preprocess_IUV_stack(IUV_stack, device):
 
 
 if __name__ == '__main__':
-
+    
     # Injecting intersection suffiency check.   IUV utils > intersection check & n_elements_can_hold_info.  Basically redo if cannot find sufficient intersection.
 
     # argparse:
-    overfit = False #True
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--odir', type=str, default='tmp',
+                        help='output dir. e.g. \'expt-1\'.')
+    parser.add_argument('--device', type=str, default='cuda',
+                        help='gpu or cpu device. cuda cuda:0 cuda:1 cpu')
+    parser.add_argument('--overfit', type=bool, default=True,
+                        help='')                       
+    args = parser.parse_args()
+    
+    val_samples = 3
     epochs = 5000
-    batch_size = 16 # take it as number of identities in a mini-batch. If 8 identities, there'll be 16 (8 x 2) pairs - 8 same pairs, 8 diff pairs. E.g. Jane-jane pair (same) , Jane-Tom pair (diff), Ben-Ben pair (same), Ben-Aaron pair (diff), ...
+    epochs_between_saves = 20
+    batch_size = 32 # take it as number of identities in a mini-batch. If 8 identities, there'll be 16 (8 x 2) pairs - 8 same pairs, 8 diff pairs. E.g. Jane-jane pair (same) , Jane-Tom pair (diff), Ben-Ben pair (same), Ben-Aaron pair (diff), ...
     plot_training_metric = True
     plot_loss = True
-    epochs_between_saves = 50
-    use_cuda = torch.cuda.is_available()
-    device = torch.device("cuda" if use_cuda else "cpu")
+    
+    device = torch.device(args.device if torch.cuda.is_available() else "cpu")
+    print('device: ', device)
     dataload = msmt17_v1_utils.MSMT17_V1_Load_Data_Utils(images_train_dir='/data/MSMT17_V1/train', 
                                                             images_test_dir='/data/MSMT17_V1/test', 
                                                             denseposeoutput_train_dir='/data/IUV-densepose/MSMT17_V1/train', 
@@ -315,21 +328,31 @@ if __name__ == '__main__':
     if load_net_path:
         net.load_state_dict(torch.load(load_net_path))
     net = net.to(device)
-    contrastive_loss = ContrastiveLoss(option='two margin cosine', pos_margin=0.1, neg_margin=0.4)
+    contrastive_loss = ContrastiveLoss(option='two margin cosine', pos_margin=0.1, neg_margin=0.7)
     distance_type = 'cosine'
     # contrastive_loss = ContrastiveLoss(option='cosine')
     # distance_type = 'cosine'
     # contrastive_loss = ContrastiveLoss(option='euclidean')
     # distance_type = 'euclidean'
     # optimizer = optim.SGD(net.parameters(), lr=0.01, momentum=0.5)
+    print(contrastive_loss.__dict__)
+
     optimizer = optim.Adam(net.parameters(), amsgrad=True, lr=0.0001) #defaults: lr=0.001, betas=(0.9, 0.999), eps=1e-08, weight_decay=0   https://pytorch.org/docs/stable/optim.html?highlight=optim#torch.optim.Adam
 
+    # Make dir for this experiment:
+    if not os.path.exists(args.odir):
+        os.makedirs(args.odir)
+    else:
+        print('Overwriting ', args.odir, '!'*100)
+    
     train_loss_record = []
     val_loss_record = []
     most_info_in_an_input_so_far = 0.03 * (24 * 224 * 224 * 3) # 224 is h,w accepted into net. init.
 
+    # Compute
+
     for epoch in range(epochs):
-        if not overfit:
+        if not args.overfit:
             pids_shuffled = np.random.permutation(dataload.train_persons_cnt)
         else:
             print('OVERFIT!' * 20)
@@ -339,7 +362,7 @@ if __name__ == '__main__':
         n_batches = int(math.ceil( pids_shuffled.size / (batch_size*1.0) ))
         # print(n_batches)
         train_loss_batches = []
-
+        net.train()
         for bidx in range(n_batches):
             batch_pids = pids_shuffled.take(np.arange(batch_size) + batch_size * bidx, mode='wrap')
             batch_of_IUV_stacks = []
@@ -384,16 +407,11 @@ if __name__ == '__main__':
                 input1s.append(S1); input2s.append(S2); targets.append(0)
             assert(len(input1s) > 0)
             assert( len(input1s) == len(input2s) and len(input2s) == len(targets) )
-            #print('len ', len(input1s))
-            # torch stack input1s, input2s, targets.
-            #print('stack')
             input1s, input2s, targets = torch.stack(input1s), torch.stack(input2s), torch.Tensor(targets)
             #print(input1s.shape, input2s.shape, targets.shape)
-            # x0, x1, y each having shape[0] of 2*batch_size
             # input1s = torch.randn(4,24*3,224,224)                   #HACK just to get it to compile.
             # input2s = torch.randn(4,24*3,224,224)
             # targets = torch.Tensor([1,0,1,0])
-            
             input1s, input2s, targets = input1s.to(device), input2s.to(device), targets.to(device) # yes! must re-assign
             optimizer.zero_grad()
             output1s, output2s = net(input1s, input2s)                       
@@ -401,16 +419,16 @@ if __name__ == '__main__':
             loss.backward()
             optimizer.step()
 
-            train_loss_batches.append(loss.detach().numpy())
+            train_loss_batches.append(loss.cpu().numpy().copy())
 
             if plot_training_metric:
-                embeds1 = output1s[targets > 0.5,:].detach().numpy()
-                embeds2 = output2s[targets > 0.5,:].detach().numpy()
+                embeds1 = output1s[targets > 0.5,:].cpu().numpy().copy()
+                embeds2 = output2s[targets > 0.5,:].cpu().numpy().copy()
                 _, geniune_scores, imposter_scores = scores(embeds1, embeds2, distance_type)
                 print('G', geniune_scores)
                 print('IMP', imposter_scores)
                 fig, plt = plot_scores(geniune_scores, imposter_scores, 'Scores', bin_width=0.05)
-                fig.savefig('tr-scores.jpg')
+                fig.savefig(os.path.join(args.odir, 'tr-scores.jpg'))
                 plt.close(fig)
             
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
@@ -418,17 +436,18 @@ if __name__ == '__main__':
                 100. * (bidx+1) / n_batches, loss.item()))
         
         train_loss_record.append( np.sum(train_loss_batches) / (1.0 * len(train_loss_batches)) )
+
         if plot_loss:
             fig = plt.figure()
             ax = fig.gca()
             plt.title('train & val loss')
             plt.plot(range(1, len(train_loss_record) + 1), train_loss_record, 'b')
             plt.ylabel('loss'); plt.xlabel('epochs')
-            fig.savefig('loss.jpg')
+            fig.savefig(os.path.join(args.odir, 'loss.jpg'))
             plt.close(fig)
         
-        if (epoch + 1) % epochs_between_saves == 0 or True:
-            torch.save(net.state_dict(), 'net-ep-{}.chkpt'.format(epoch+1))
+        if (epoch + 1) % epochs_between_saves == 0:
+            torch.save(net.state_dict(), os.path.join(args.odir, 'net-ep-{}.chkpt'.format(epoch+1)) )
 
         # for k epochs, run 1 validation.
-        # save
+        

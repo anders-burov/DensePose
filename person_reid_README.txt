@@ -18,6 +18,8 @@ example-siamese.py  Example siamese ent.
 
 example-basic-train.py  Example basic training.
 
+test.py       For testing net.
+
 resnet_custom.py
 A custom resnet that can take in IUV stacks as input.
 
