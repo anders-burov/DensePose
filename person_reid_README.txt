@@ -19,6 +19,7 @@ example-siamese.py  Example siamese ent.
 example-basic-train.py  Example basic training.
 
 test.py       For testing net.
+$ python test.py --net="expt-32-twomarg-0.034-0.7/net-ep-20.chkpt" --pos_margin=0.034 --neg_margin=0.7 --n_samples=3
 
 resnet_custom.py
 A custom resnet that can take in IUV stacks as input.
