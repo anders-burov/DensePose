@@ -14,9 +14,11 @@ To process MSMT17_V1:
 $ python tools/infer_for_reid.py --cfg configs/DensePose_ResNet101_FPN_s1x-e2e.yaml --output-dir ./person_reid_data --image-ext jpg --wts /data/DensePose_ResNet101_FPN_s1x-e2e.pkl --throttle=0.5 /data/MSMT17_V1 
 Outputs to /person_reid_data/MSMT17_V1/train/0000/{________IUV.png, ______INDS.png, ________.pdf}
 
+precompute_IUV_stacks_MSMT17.py   Precomputes IUV stacks on test dataset. Helps prevent OOM error when performing inference on whole test dataset.
+
 example-siamese.py  Example siamese ent.
 
-example-basic-train.py  Example basic training.
+example_basic_train.py  Example basic training.
 
 test.py       For testing net.
 $ python test.py --net="expt-32-twomarg-0.034-0.7/net-ep-20.chkpt" --pos_margin=0.034 --neg_margin=0.7 --n_samples=3
