@@ -13,9 +13,9 @@ if __name__ == '__main__':
     parser.add_argument('--odir', type=str, default='/data/IUV-densepose/MSMT17_V1/precomputed',
                         help='output dir')
     parser.add_argument('--n_sets', type=int, default=10,
-                        help='Number of sets of precomputed test people.')
+                        help='Number of sets of precomputed test people to generate.')
     parser.add_argument('--start_at', type=int, default=0,
-                        help='A set id to start at. This is to help make this script more run-able in parallel.')
+                        help='Set id to start at. This is to help make this script more run-able in parallel.')
     args = parser.parse_args()
     [print(arg, ':', getattr(args, arg)) for arg in vars(args)]
     dataload = msmt17_v1_utils.MSMT17_V1_Load_Data_Utils(images_train_dir='/data/MSMT17_V1/train', 

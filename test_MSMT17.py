@@ -81,6 +81,7 @@ class ContrastiveLoss(torch.nn.Module):
         assert len(in_types) == 3
         x0_type, x1_type, y_type = in_types
         assert x0_type.size() == x1_type.shape
+        print(x1_type.size() , y_type.shape)
         assert x1_type.size()[0] == y_type.shape[0]
         assert x1_type.size()[0] > 0
         assert x0_type.dim() == 2
@@ -231,10 +232,16 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--odir', type=str, default='tmp',
                         help='output dir. e.g. \'expt-1\'.')
+    parser.add_argument('--idir', type=str, default='/data/IUV-densepose/MSMT17_V1/precomputed',
+                        help='input dir.')
     parser.add_argument('--device', type=str, default='cuda:3',
                         help='gpu or cpu device. cuda cuda:0 cuda:1 cpu')
-    parser.add_argument('--n_samples', type=int, default=3,
-                        help='num samples to draw from test.')
+    parser.add_argument('--n_probes', type=int, default=3,
+                        help='num of probes')
+    parser.add_argument('--n_gallery', type=int, default=3,
+                        help='num of people in gallery')
+    parser.add_argument('--batch_size', type=int, default=3,
+                        help='To prevent OOM error on device running neural netowrk.')
     parser.add_argument('--net', type=str, default=None,
                         help='path to network. e.g. \"expt-32-twomarg-0.1-0.7/net-ep-20.chkpt\"')
     parser.add_argument('--contrastlossopt', type=str, default="two margin cosine",
@@ -247,6 +254,8 @@ if __name__ == '__main__':
                         help='e.g. cosine')
     args = parser.parse_args()
     [print(arg, ':', getattr(args, arg)) for arg in vars(args)]
+    assert(args.n_gallery >= args.n_probes)
+    assert(args.n_gallery % args.batch_size == 0)
     loss = ContrastiveLoss(option=args.contrastlossopt, pos_margin=args.pos_margin, neg_margin=args.neg_margin)
     print("Ensure loss used is similar to loss used during training if you\'re comparing training loss to test/val loss.")
     device = torch.device(args.device if torch.cuda.is_available() else "cpu")
@@ -258,9 +267,7 @@ if __name__ == '__main__':
     # Make dir for this experiment:
     if not os.path.exists(args.odir):
         os.makedirs(args.odir)
-    else:
-        print('Overwriting ', args.odir, '!'*100)
-    logbk = {} # A dict for recording whatever is computed.
+    logbk = {} # A dict for recording stuff computed.
     # Print loss:
     print(loss.__dict__)
     # Load net:
@@ -271,58 +278,65 @@ if __name__ == '__main__':
     net.eval()
     # Get samples:
     pids_shuffled = np.random.permutation(dataload.test_persons_cnt)
-    pids = pids_shuffled[:args.n_samples]
-    logbk['pids'] = pids
-    # do a few pids at a time until all pids done. #store computed embeddings as numpy array.
-    # embeds1_np = []
-    # embeds2_np = []
-    # targets_np = []
-    batch_of_IUV_stacks = [] 
-    for pid in pids:
-        print('doing pid', pid)
-        pidstr = str(pid).zfill(4)
-        n_chips_avail = dataload.num_chips('test', pidstr)
-        chips = dataload.random_chips('test', pidstr, n_chips_avail)
-        split1 = chips[ : int(len(chips)/2)]
-        split2 = chips[int(len(chips)/2) : ]
-        S1 = combined_IUVstack_from_multiple_chips(dataload, pid=pidstr, chip_paths=split1, trainortest='test', combine_mode='average v2')
-        S2 = combined_IUVstack_from_multiple_chips(dataload, pid=pidstr, chip_paths=split2, trainortest='test', combine_mode='average v2')
-        batch_of_IUV_stacks.append( (S1.copy(), S2.copy()) )
-    input1s, input2s, targets = make_pairs(batch_of_IUV_stacks, device='cpu')   # smaller batches!
-    # Compute loss:
+    glabels = pids_shuffled[:args.n_gallery]
+    plabels = glabels[:args.n_probes]
+    logbk['glabels'] = glabels
+    logbk['plabels'] = plabels
+    similarity_mat = np.zeros((len(glabels), len(plabels)))
+    loss_mat = None # np.zeros_like(similarity_mat)  # TODO. loss needs to have reduce=False option.
+    intersection_mat = np.zeros_like(similarity_mat)
     with torch.no_grad():
-        input1s, input2s, targets = torch.stack(input1s), torch.stack(input2s), torch.Tensor(targets)
-        input1s, input2s, targets = input1s.to(device), input2s.to(device), targets.to(device) # yes! must re-assign
-        output1s, output2s = net(input1s, input2s)
-        loss_ = loss(output1s, output2s, targets)
-    logbk['loss'] = loss_.cpu().numpy().copy()
-    # print(output2s.shape)
-    # print(output1s.shape)
-    # print(targets.shape)
-    # embeds1_np.append(output1s.cpu().numpy().copy())
-    # embeds2_np.append(output2s.cpu().numpy().copy())
-    # targets_np.append(targets.cpu().numpy().copy())
-    # exit()
-    print('loss ', logbk['loss'])
-    # Compute metric genuine & imposter scores:
-    embeds1 = output1s[targets > 0.5,:].cpu().numpy().copy()
-    embeds2 = output2s[targets > 0.5,:].cpu().numpy().copy()
-    scoremat, genuine_scores, imposter_scores = scores(embeds1, embeds2, args.distance_type)
-    print('G', genuine_scores)
-    print('IMP', imposter_scores)
-    fig, plt = plot_scores(genuine_scores, imposter_scores, 'Scores', bin_width=0.05)
-    #plt.show()
-    fig.savefig(os.path.join(args.odir, 'test-scores-{}.jpg'.format(script_start_time)))
-    plt.close(fig)
-    logbk['scoremat'] = scoremat
-    logbk['genuine_scores'] = genuine_scores
-    logbk['imposter_scores'] = imposter_scores
-    # Compute metric CMC:
-    distmat = 1 - scoremat
-    logbk['distmat'] = distmat
-    cmc_values = cmc_count(distmat=distmat, n_selected_labels=None, n_repeat=1)
+        for setid in range(1):
+            for col, p_pid in enumerate(plabels):
+                print('Probe [{}/ {}]:'.format(col+1, len(plabels)))
+                print('Doing col', col, 'whose probe pid is', p_pid)
+                IUVs = np.load(os.path.join(args.idir, str(setid), str(p_pid)+'.npz'  ))
+                S_probe = IUVs['S'+str(random.randint(1,2))].copy()
+                assert(len(glabels) % args.batch_size == 0)
+                num_batches_for_1_probe = len(glabels) / args.batch_size
+                for bidx in range(num_batches_for_1_probe):
+                    start_idx = bidx * args.batch_size
+                    end_idx = start_idx + args.batch_size 
+                    g_pids_batch = glabels[start_idx:end_idx] # end_idx not really the last index cuz half-open convention [a,b) in indexing.
+                    print('Batch [{}/ {}]:'.format(bidx+1, num_batches_for_1_probe))
+                    print('glabels in this batch:', g_pids_batch)
+                    input1s=[]; input2s=[]; targets=[]
+                    for r, g_pid in enumerate(g_pids_batch):
+                        IUVs = np.load(os.path.join(args.idir, str(setid), str(g_pid)+'.npz'  ))
+                        S_gal = IUVs['S'+str(random.randint(1,2))].copy()
+                        mask = get_intersection(S_probe, S_gal)
+                        cur_row = start_idx + r
+                        intersection_mat[cur_row, col] = np.sum(mask)
+                        # most_info_in_an_input_so_far = max(np.sum(mask), most_info_in_an_input_so_far) # update
+                        # print('% IUV filled: ', 1.0 * np.sum(mask) / most_info_in_an_input_so_far)
+                        Sp = apply_mask_to_IUVstack(S_probe.copy(), mask)
+                        Sg = apply_mask_to_IUVstack(S_gal.copy(), mask)
+                        Sp = preprocess_IUV_stack(Sp, device)
+                        Sg = preprocess_IUV_stack(Sg, device)
+                        input1s.append(Sp); input2s.append(Sg); targets.append(1 if p_pid == g_pid else 0)
+                    input1s, input2s, targets = torch.stack(input1s), torch.stack(input2s), torch.Tensor(targets)
+                    input1s, input2s, targets = input1s.to(device), input2s.to(device), targets.to(device)
+                    embs_p, embs_g = net(input1s, input2s)
+                    #loss_ = loss(emb1s, emb2s, targets).cpu().numpy().copy()  # TODO add reduce so that two_margin_cosine_loss can do this.
+                    # loss_mat[start_idx:end_idx, col] = loss_
+                    score_mat, _, _ = scores(embs_g, embs_p, args.distance_type)
+                    relevant_scores = np.diagonal(score_mat)  # off diagonal elems are irrelevant!
+                    # for i in range(embs_g.shape[0]):
+                    #     score, _, _ = scores(embs_g[[i],:], embs_p[[i],:], args.distance_type)
+                    #     print(score)
+                    similarity_mat[start_idx:end_idx, col] = relevant_scores
+                    # print('intersection', intersection_mat[row, col])
+                    # print('loss', loss_mat[row, col])
+                    # print('similarity', similarity_mat[row, col])
+                    # print(loss_mat[0:16,0:16])
+                    #print(similarity_mat)
+    logbk['similarity_mat'] = similarity_mat
+    logbk['intersection_mat'] = intersection_mat
+    pickle.dump(logbk, open(os.path.join(args.odir, 'test-logbk-{}.pkl'.format(script_start_time)), 'wb'), protocol=2)
+    # Plot CMC:
+    distmat = 1 - logbk['similarity_mat']
+    cmc_values = cmc_count(distmat=distmat, glabels=logbk['glabels'], plabels=logbk['plabels'], n_selected_labels=None, n_repeat=1)
     print(cmc_values)
-    logbk['cmc_values'] = cmc_values
     fig = plt.figure()
     ax = fig.gca()
     plt.title('CMC')
@@ -332,6 +346,63 @@ if __name__ == '__main__':
     fig.savefig(os.path.join(args.odir, 'test-cmc-{}.jpg'.format(script_start_time)))
     plt.close(fig)
 
-    for k,v in logbk.items():
-        print(k, v)
-    pickle.dump(logbk, open(os.path.join(args.odir, 'test-logbk-{}.pkl'.format(script_start_time)), 'wb'), protocol=2)
+    
+    exit()
+
+
+
+"""pidstr = str(pid).zfill(4)
+n_chips_avail = dataload.num_chips('test', pidstr)
+chips = dataload.random_chips('test', pidstr, n_chips_avail)
+split1 = chips[ : int(len(chips)/2)]
+split2 = chips[int(len(chips)/2) : ]
+S1 = combined_IUVstack_from_multiple_chips(dataload, pid=pidstr, chip_paths=split1, trainortest='test', combine_mode='average v2')
+S2 = combined_IUVstack_from_multiple_chips(dataload, pid=pidstr, chip_paths=split2, trainortest='test', combine_mode='average v2')
+batch_of_IUV_stacks.append( (S1.copy(), S2.copy()) )
+input1s, input2s, targets = make_pairs(batch_of_IUV_stacks, device='cpu')   # smaller batches!
+# Compute loss:
+with torch.no_grad():
+input1s, input2s, targets = torch.stack(input1s), torch.stack(input2s), torch.Tensor(targets)
+input1s, input2s, targets = input1s.to(device), input2s.to(device), targets.to(device) # yes! must re-assign
+output1s, output2s = net(input1s, input2s)
+loss_ = loss(output1s, output2s, targets)
+logbk['loss'] = loss_.cpu().numpy().copy()
+# print(output2s.shape)
+# print(output1s.shape)
+# print(targets.shape)
+# embeds1_np.append(output1s.cpu().numpy().copy())
+# embeds2_np.append(output2s.cpu().numpy().copy())
+# targets_np.append(targets.cpu().numpy().copy())
+# exit()
+print('loss ', logbk['loss'])
+# Compute metric genuine & imposter scores:
+embeds1 = output1s[targets > 0.5,:].cpu().numpy().copy()
+embeds2 = output2s[targets > 0.5,:].cpu().numpy().copy()
+scoremat, genuine_scores, imposter_scores = scores(embeds1, embeds2, args.distance_type)
+print('G', genuine_scores)
+print('IMP', imposter_scores)
+fig, plt = plot_scores(genuine_scores, imposter_scores, 'Scores', bin_width=0.05)
+#plt.show()
+fig.savefig(os.path.join(args.odir, 'test-scores-{}.jpg'.format(script_start_time)))
+plt.close(fig)
+logbk['scoremat'] = scoremat
+logbk['genuine_scores'] = genuine_scores
+logbk['imposter_scores'] = imposter_scores
+# Compute metric CMC:
+distmat = 1 - scoremat
+logbk['distmat'] = distmat
+cmc_values = cmc_count(distmat=distmat, n_selected_labels=None, n_repeat=1)
+print(cmc_values)
+logbk['cmc_values'] = cmc_values
+fig = plt.figure()
+ax = fig.gca()
+plt.title('CMC')
+plt.plot(range(1, len(cmc_values) + 1), cmc_values, 'b')
+plt.ylabel('Match rate'); plt.xlabel('Rank')
+#plt.show()
+fig.savefig(os.path.join(args.odir, 'test-cmc-{}.jpg'.format(script_start_time)))
+plt.close(fig)
+
+for k,v in logbk.items():
+print(k, v)
+pickle.dump(logbk, open(os.path.join(args.odir, 'test-logbk-{}.pkl'.format(script_start_time)), 'wb'), protocol=2)"""
