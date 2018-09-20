@@ -257,7 +257,7 @@ if __name__ == '__main__':
     assert(args.n_gallery >= args.n_probes)
     assert(args.n_gallery % args.batch_size == 0)
     loss = ContrastiveLoss(option=args.contrastlossopt, pos_margin=args.pos_margin, neg_margin=args.neg_margin)
-    print("Ensure loss used is similar to loss used during training if you\'re comparing training loss to test/val loss.")
+    print("[NOTE]  Ensure loss used is similar to loss used during training if you\'re comparing training loss to test/val loss.")
     device = torch.device(args.device if torch.cuda.is_available() else "cpu")
     print('device: ', device)
     dataload = msmt17_v1_utils.MSMT17_V1_Load_Data_Utils(images_train_dir='/data/MSMT17_V1/train', 
@@ -288,7 +288,9 @@ if __name__ == '__main__':
     with torch.no_grad():
         for setid in range(1):
             for col, p_pid in enumerate(plabels):
-                print('Probe [{}/ {}]:'.format(col+1, len(plabels)))
+                print('{} Probe [{}/ {}]:'.format("{:%m-%d-%H-%M-%S}".format(datetime.now()), 
+                                                    col+1, 
+                                                    len(plabels)))
                 print('Doing col', col, 'whose probe pid is', p_pid)
                 IUVs = np.load(os.path.join(args.idir, str(setid), str(p_pid)+'.npz'  ))
                 S_probe = IUVs['S'+str(random.randint(1,2))].copy()
@@ -298,7 +300,9 @@ if __name__ == '__main__':
                     start_idx = bidx * args.batch_size
                     end_idx = start_idx + args.batch_size 
                     g_pids_batch = glabels[start_idx:end_idx] # end_idx not really the last index cuz half-open convention [a,b) in indexing.
-                    print('Batch [{}/ {}]:'.format(bidx+1, num_batches_for_1_probe))
+                    print('{} Batch [{}/ {}]:'.format("{:%m-%d-%H-%M-%S}".format(datetime.now()), 
+                                                        bidx+1, 
+                                                        num_batches_for_1_probe))
                     print('glabels in this batch:', g_pids_batch)
                     input1s=[]; input2s=[]; targets=[]
                     for r, g_pid in enumerate(g_pids_batch):

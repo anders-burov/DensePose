@@ -22,8 +22,12 @@ example-siamese.py  Example siamese ent.
 example_basic_train.py  Example basic training.
 
 test_MSMT17.py       For testing net.
+Examples:
 $ python test_MSMT17.py --net="expt-32-twomarg-0.034-0.7/net-ep-20.chkpt" --pos_margin=0.034 --neg_margin=0.7 --n_probes=4 --n_gallery=8 --batch_size=4
-
+This takes 5 hours:
+$ python test_MSMT17.py --net="expt-32-twomarg-0.034-0.7/net-ep-20.chkpt" --pos_margin=0.034 --neg_margin=0.7 --odir="tmp/p0.034n0.7ep20" --n_probes=50 --n_gallery=450 --batch_size=50
+DO _NOT_ DO THE FOLLOWING BECAUSE IT'LL TAKE 43 days:
+$ python test_MSMT17.py --net="expt-32-twomarg-0.034-0.7/net-ep-20.chkpt" --pos_margin=0.034 --neg_margin=0.7 --odir="tmp/p0.034n0.7ep20" --n_probes=3060 --n_gallery=3060 --batch_size=153
 
 resnet_custom.py
 A custom resnet that can take in IUV stacks as input.
