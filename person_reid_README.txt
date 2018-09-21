@@ -29,6 +29,11 @@ $ python test_MSMT17.py --net="expt-32-twomarg-0.034-0.7/net-ep-20.chkpt" --pos_
 DO _NOT_ DO THE FOLLOWING BECAUSE IT'LL TAKE 43 days:
 $ python test_MSMT17.py --net="expt-32-twomarg-0.034-0.7/net-ep-20.chkpt" --pos_margin=0.034 --neg_margin=0.7 --odir="tmp/p0.034n0.7ep20" --n_probes=3060 --n_gallery=3060 --batch_size=153
 
+test_MSMT17_v2.py       For testing net.
+$ python test_MSMT17_v2.py --net="expt-32-twomarg-0.1-0.7/net-ep-40.chkpt" --pos_margin=0.1 --neg_margin=0.7 --odir="tmp/p0.1n0.1ep40" --n_probes=50 --n_gallery=450 --batch_size=25 --num_worker=8
+
+
+
 resnet_custom.py
 A custom resnet that can take in IUV stacks as input.
 
