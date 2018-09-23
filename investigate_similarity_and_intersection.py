@@ -39,33 +39,28 @@ def main():
     script_start_time = "{:%m-%d-%H-%M-%S}".format(datetime.now()); print('script_start_time ', script_start_time)
     idir = 'tmp/p0.1n0.7ep80'
     logbk_path = os.path.join(idir, 'test-logbk-09-23-17-48-06.pkl')
+    logbk = pickle.load(open(logbk_path,'rb'))
     odir = os.path.join(idir, 'ROC')
     if not os.path.exists(odir):
         os.makedirs(odir)
-    logbk = pickle.load(open('tmp/p0.1n0.7ep80/test-logbk-09-23-17-48-06.pkl','rb'))
     sim_mat = logbk['similarity_mat']
     interx_mat = logbk['intersection_mat']
-    for q in np.arange(0, 11, 10):
-        thresh = np.percentile(interx_mat, q=q)
-        print('At', q, '%:', thresh, 'intersection amt.')
-        tmp_expt_name = expt_name + 'above_' + str(q) + '_percentile'
+    convenience_later = [[], []]
+    for percentile in np.arange(0, 51, 10):
+        thresh = np.percentile(interx_mat, q=percentile)
+        print('At', percentile, '%:', thresh, 'intersection amt.')
+        tmp_expt_name = expt_name + 'above_' + str(percentile) + '_percentile'
         genuine_scores, imposter_scores = get_genuine_and_imposter_scores(sim_mat.copy(), interx_mat.copy(), thresh)
-        np.savetxt(os.path.join(odir, 'genuine-{}.txt'.format(tmp_expt_name)), genuine_scores)
-        np.savetxt(os.path.join(odir, 'imposter-{}.txt'.format(tmp_expt_name)), imposter_scores)
-
-
-    # exit()
-
-    # # # print(np.diag(sim_mat).shape, np.diag(sim_mat))
-    # # if remove_scores_below_median:
-    # #     thres_interx = np.median(interx_mat)
-    # # else:
-    # #     thres_interx = 0
-    # print('threshold intersction:', thres_interx)
-    # genuine_scores, imposter_scores = get_genuine_and_imposter_scores(sim_mat, interx_mat, thres_interx)
-    # exit()
-    # np.savetxt(os.path.join(odir, 'genuine-{}.txt'.format(expt_name)), genuine_scores)
-    # np.savetxt(os.path.join(odir, 'imposter-{}.txt'.format(expt_name)), imposter_scores)
+        filename_G = 'genuine-{}.txt'.format(tmp_expt_name)
+        filename_I = 'imposter-{}.txt'.format(tmp_expt_name)
+        np.savetxt(os.path.join(odir, filename_G), genuine_scores)
+        np.savetxt(os.path.join(odir, filename_I), imposter_scores)
+        convenience_later[0].append(filename_G)
+        convenience_later[1].append(filename_I)
+    print('The following print outs will come in handy for pyeer:')
+    print(",".join(convenience_later[0]))
+    print(",".join(convenience_later[1]))
+    
 
 
 if __name__ == "__main__":
