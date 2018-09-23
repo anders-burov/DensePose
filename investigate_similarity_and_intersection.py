@@ -33,6 +33,12 @@ def get_genuine_and_imposter_scores(similarity_mat, intersection_mat, threshold)
     # print(sim_mat.size, 'vs num of imposter scores:', imposter_scores.shape)
     return genuine_scores, imposter_scores
 
+def print_CMC(logbk_path):
+    logbk = pickle.load(open(logbk_path,'rb'))
+    distmat = 1 - logbk['similarity_mat']
+    cmc_values = cmc_count(distmat=distmat, glabels=logbk['glabels'], plabels=logbk['plabels'], n_selected_labels=None, n_repeat=1)
+    print(cmc_values)
+    print('rank1,5,10,20:', cmc_values[[0,4,9,19]])
 
 def main():
     expt_name = ''
@@ -41,6 +47,12 @@ def main():
     logbk_path = os.path.join(idir, 'test-logbk-09-23-17-48-06.pkl')
     logbk = pickle.load(open(logbk_path,'rb'))
     odir = os.path.join(idir, 'ROC')
+
+    print_CMC(logbk_path)
+    if 1==1:  # Just use for printing CMC.
+        print('I printed CMC and then exited. Nothing was written to disk!')
+        exit()
+    
     if not os.path.exists(odir):
         os.makedirs(odir)
     sim_mat = logbk['similarity_mat']
@@ -61,6 +73,7 @@ def main():
     print(",".join(convenience_later[0]))
     print(",".join(convenience_later[1]))
     
+
 
 
 if __name__ == "__main__":
