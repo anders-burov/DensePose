@@ -32,6 +32,12 @@ $ python test_MSMT17.py --net="expt-32-twomarg-0.034-0.7/net-ep-20.chkpt" --pos_
 test_MSMT17_v2.py       For testing net.
 $ python test_MSMT17_v2.py --net="expt-32-twomarg-0.1-0.7/net-ep-40.chkpt" --pos_margin=0.1 --neg_margin=0.7 --odir="tmp/p0.1n0.1ep40" --n_probes=50 --n_gallery=450 --batch_size=25 --num_worker=8
 
+Compute ROC, DET:
+$ pip install pyeer
+$ python investigate_similarity_and_intersection.py    #RUNS FAST. NEEDS PRECOMPUTED STUFF FROM test_MSMT17_v2.py
+$ geteerinf -p "tmp/p0.1n0.7ep80/ROC" -i "imposter-nofilt.txt" -g "genuine-nofilt.txt" -lw 1
+$ geteerinf -p "tmp/p0.1n0.7ep80/ROC" -i "imposter-filtmedian.txt" -g "genuine-filtmedian.txt" -e "filtmedian" -lw 1 -sp "tmp/p0.1n0.7ep80/ROC" -s
+To do multiple genuine & imposter score pairs at once, set -i "imposter-filtmedian.txt,imposter-nofilt.txt". Do the same with -g "file.txt,file2.txt" .
 
 
 resnet_custom.py
