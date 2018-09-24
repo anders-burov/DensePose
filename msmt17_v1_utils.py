@@ -91,6 +91,47 @@ class MSMT17_V1_Load_Data_Utils():
 
 
 
+def combined_IUVstack_from_multiple_chips(dataload, pid, chip_paths, trainortest, combine_mode=None):
+    # example:
+    # combined_IUV_stack = chip_paths_to_combined_IUVstack(pid='0001', 
+    #                                                      chip_paths=['/data/MSMT17_V1/train/0001/0001_011_01_0303morning_0036_1.jpg'
+    #                                                   '/data/MSMT17_V1/train/0001/0001_051_01_0303morning_0758_0.jpg'
+    #                                                   '/data/MSMT17_V1/train/0001/0001_045_01_0303morning_0755_1.jpg'
+    #                                                   '/data/MSMT17_V1/train/0001/0001_067_14_0303morning_0981_1.jpg'
+    #                                                   '/data/MSMT17_V1/train/0001/0001_018_07_0303morning_0033_1_ex.jpg'], 
+    #                                                    trainortest = 'train')
+    indiv_stacks = []
+    for path in chip_paths:
+        chipname = os.path.basename(path)
+        im, IUV, INDS = dataload.get(trainortest=trainortest, 
+                                     pid=pid, 
+                                     chipname=chipname)
+        if IUV is None or INDS is None:
+            continue # skip processing this path
+        ii = inds_value_of_most_prominent_person(INDS, mode='strict')
+        if ii is None:   # strict mode "failed". Change mode.
+            ii = inds_value_of_most_prominent_person(INDS, mode='most pixels')
+        if ii is None:   # could be that INDS segmented no person(s).
+            continue # skip processing this path
+        new_IUV = IUV_with_only_this_inds_value(IUV, INDS, inds_value=ii)
+        indiv_stacks.append(create_IUVstack(im, new_IUV))
+    return combine_IUV_stacks(IUV_stack_list=indiv_stacks, mode=combine_mode)
+
+
+def preprocess_IUV_stack(IUV_stack, device):
+    # IUV_stack: Format is format of output of create_IUVstack(image_file, IUV_png_file).
+    #            This code can be MODIFIED to also take in a HSV or HS (no V) type of IUVstack.
+    # device: torch device. E.g. 'cuda' or 'cpu'.
+    S = IUV_stack[:, 16:256-16, 16:256-16, :]    # Crop to 24x224x224x3
+    S = normalize_to_reals_0to1(S)               # Normalize
+    S = torch.Tensor(S)                          # Convert to torch tensors
+    S = S.to(device)
+    return S.view(24*3, 224, 224)
+
+
+
+
+
 class Dataset_Test(torch.utils.data.Dataset):
     def __init__(self, precomputed_test_path, setid, glabels, plabels):
         """
@@ -168,11 +209,13 @@ class Dataset_Test(torch.utils.data.Dataset):
 
 
 
-class Dataset_Train(torch.utils.data.Dataset):
-    def __init__(self, dataload=None, mask_inputs=False, combine_mode='average v2'):
+class Dataset_msmt17(torch.utils.data.Dataset):
+    def __init__(self, dataload=None, trainortest=None, pids_allowed=None, mask_inputs=False, combine_mode='average v2'):
         """
         Args:
             dataload: A MSMT17_V1_Load_Data_Utils object.
+            trainortest: 'train' or 'test'
+            pids_allowed: e.g. [0,1,2,3,..., 1040]
             mask_inputs: True/False. If True, input pairs are masked
                          such that only the common regions remain.
                          Note that even though this "sanitizes the input",
@@ -188,22 +231,25 @@ class Dataset_Train(torch.utils.data.Dataset):
                                                             denseposeoutput_train_dir='/data/IUV-densepose/MSMT17_V1/train', 
                                                             denseposeoutput_test_dir='/data/IUV-densepose/MSMT17_V1/test')
         self.dataload = dataload
+        self.trainortest = trainortest
+        assert(not pids_allowed is None)
+        self.test_persons_cnt
         self.mask_inputs = mask_inputs
         self.combine_mode = combine_mode
         self.intersection_amt_stats = Welford()
         self.intersection_amt_most_encountered = 0 #init
 
     def __len__(self):
-        return self.dataload.train_persons_cnt
+        return len(self.pids_allowed)
 
     def positive_pair(self, pid, mask_inputs, device):
         pidstr = str(pid).zfill(4)
-        n_chips_avail = dataload.num_chips('train', pidstr)
-        chips = dataload.random_chips('train', pidstr, n_chips_avail)
+        n_chips_avail = dataload.num_chips(self.trainortest, pidstr)
+        chips = dataload.random_chips(self.trainortest, pidstr, n_chips_avail)
         split1 = chips[ : int(len(chips)/2)]
         split2 = chips[int(len(chips)/2) : ]
-        S1 = combined_IUVstack_from_multiple_chips(self.dataload, pid=pidstr, chip_paths=split1, trainortest='train', combine_mode=self.combine_mode)
-        S2 = combined_IUVstack_from_multiple_chips(self.dataload, pid=pidstr, chip_paths=split2, trainortest='train', combine_mode=self.combine_mode)
+        S1 = combined_IUVstack_from_multiple_chips(self.dataload, pid=pidstr, chip_paths=split1, trainortest=self.trainortest, combine_mode=self.combine_mode)
+        S2 = combined_IUVstack_from_multiple_chips(self.dataload, pid=pidstr, chip_paths=split2, trainortest=self.trainortest, combine_mode=self.combine_mode)
         mask = get_intersection(S1, S2)    # intersect
         if mask_inputs:
             S1 = apply_mask_to_IUVstack(S1, mask)
@@ -213,16 +259,16 @@ class Dataset_Train(torch.utils.data.Dataset):
         return S1, S2, mask
 
     def one_negative_sample(self, pid, S, mask_inputs, device):
-        assert(pid < self.dataload.train_persons_cnt) # int check
-        persons = list(range(self.dataload.train_persons_cnt))
+        assert(pid < self.__len__()) # int check
+        persons = list(self.pids_allowed)
         persons.remove(pid)
-        neg_person = random.choice(persons)
+        neg_pid = random.choice(persons)
         assert(neg_pid != pid)
         pidstr = str(neg_pid).zfill(4)
-        n_chips_avail = dataload.num_chips('train', pidstr)
-        chips = dataload.random_chips('train', pidstr, n_chips_avail)
+        n_chips_avail = dataload.num_chips(self.trainortest, pidstr)
+        chips = dataload.random_chips(self.trainortest, pidstr, n_chips_avail)
         split = chips[ : int(len(chips)/2)]
-        S_neg = combined_IUVstack_from_multiple_chips(self.dataload, pid=pidstr, chip_paths=split, trainortest='train', combine_mode=self.combine_mode)
+        S_neg = combined_IUVstack_from_multiple_chips(self.dataload, pid=pidstr, chip_paths=split, trainortest=self.trainortest, combine_mode=self.combine_mode)
         mask = get_intersection(S_neg, S)    # intersect
         if mask_inputs:
             S_neg = apply_mask_to_IUVstack(S_neg, mask)
@@ -233,12 +279,13 @@ class Dataset_Train(torch.utils.data.Dataset):
 
     def __getitem__(self, index):
         #
-        S1, S2, mask_pos_pair = self.positive_pair(pid=index, mask_inputs=self.mask_inputs, device='cpu')
+        pos_pid = pids_allowed[index]
+        S1, S2, mask_pos_pair = self.positive_pair(pid=pos_pid, mask_inputs=self.mask_inputs, device='cpu')
         interx_amt_pos_pair = np.sum(mask_pos_pair)
         self.intersection_amt_stats([interx_amt_pos_pair]) # update
         self.intersection_amt_most_encountered = max(interx_amt_pos_pair, self.intersection_amt_most_encountered) # update
         #
-        S_neg, _, mask_neg_pair, neg_pid = self.one_negative_sample(pid=index, S=S1, mask_inputs=self.mask_inputs, device='cpu')
+        S_neg, _, mask_neg_pair, neg_pid = self.one_negative_sample(pid=pos_pid, S=S1, mask_inputs=self.mask_inputs, device='cpu')
         interx_amt_neg_pair = np.sum(mask_neg_pair)
         self.intersection_amt_stats([interx_amt_neg_pair]) # update
         self.intersection_amt_most_encountered = max(interx_amt_neg_pair, self.intersection_amt_most_encountered) # update
@@ -247,7 +294,6 @@ class Dataset_Train(torch.utils.data.Dataset):
         print('% IUV filled <p>: ', 1.0 * interx_amt_pos_pair / self.intersection_amt_most_encountered)
         print('% IUV filled <n>: ', 1.0 * interx_amt_neg_pair / self.intersection_amt_most_encountered)
         #
-        pos_pid = index
         target_pos = np.array([1])
         target_neg = np.array([0])
         return S1, S2, S_neg, target_pos, target_neg, interx_amt_pos_pair, interx_amt_neg_pair, mask_pos_pair, mask_neg_pair, pos_pid, neg_pid
