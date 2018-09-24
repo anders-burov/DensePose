@@ -42,11 +42,11 @@ def print_CMC(logbk_path):
 
 def main():
     expt_name = ''
-    script_start_time = "{:%m-%d-%H-%M-%S}".format(datetime.now()); print('script_start_time ', script_start_time)
-    idir = 'tmp/p0.1n0.7ep80'
-    logbk_path = os.path.join(idir, 'test-logbk-09-23-17-48-06.pkl')
+    # script_start_time = "{:%m-%d-%H-%M-%S}".format(datetime.now()); print('script_start_time ', script_start_time)
+    idir = 'tmp/p0.1n0.7ep100'
+    logbk_path = os.path.join(idir, 'test-logbk-09-23-23-47-47.pkl')
     logbk = pickle.load(open(logbk_path,'rb'))
-    odir = os.path.join(idir, 'ROC')
+    odir = os.path.join(idir, 'ROC', '09-23-23-47-47')
 
     print_CMC(logbk_path)
     if 1==1:  # Just use for printing CMC.

@@ -41,9 +41,6 @@ To do multiple genuine & imposter score pairs at once:
 $ geteerinf -p "tmp/p0.1n0.7ep80/ROC"      -i "imposter-above_0_percentile.txt,imposter-above_10_percentile.txt,imposter-above_20_percentile.txt,imposter-above_30_percentile.txt,imposter-above_40_percentile.txt,imposter-above_50_percentile.txt"      -g "genuine-above_0_percentile.txt,genuine-above_10_percentile.txt,genuine-above_20_percentile.txt,genuine-above_30_percentile.txt,genuine-above_40_percentile.txt,genuine-above_50_percentile.txt"        -lw 1 -ls 10 -sp "tmp/p0.1n0.7ep80/ROC" -s
 
 
-
-
-
 resnet_custom.py
 A custom resnet that can take in IUV stacks as input.
 
