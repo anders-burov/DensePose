@@ -30,18 +30,19 @@ if __name__ == '__main__':
                         help='output dir. e.g. \'expt-1\'.')
     parser.add_argument('--device', type=str, default='cuda',
                         help='gpu or cpu device. cuda cuda:0 cuda:1 cpu')
-    parser.add_argument('--batch_size', type=int, default=3,
-                        help='')
+    parser.add_argument('--batch_size', type=int, default=50,
+                        help='If batch size is 4, there\'ll be 4 positive pairs and 4 negative pairs per batch. Implies 8 pairs per batch.")
     parser.add_argument('--num_workers', type=int, default=1,
                         help='num workers on dataloaders.')
     parser.add_argument('--overfit', type=bool, default=True,
                         help='')                       
     args = parser.parse_args()
     
+    logbk = {}
+
     val_samples = 3
     epochs = 5000
     epochs_between_saves = 10
-    batch_size = 32 # take it as number of identities in a mini-batch. If 8 identities, there'll be 16 (8 x 2) pairs - 8 same pairs, 8 diff pairs. E.g. Jane-jane pair (same) , Jane-Tom pair (diff), Ben-Ben pair (same), Ben-Aaron pair (diff), ...
     plot_training_metric = True
     plot_loss = True
     
@@ -74,14 +75,14 @@ if __name__ == '__main__':
     else:
         print('Overwriting ', args.odir, '!'*100)
     
-    train_pids_allowed = tuple(range(dataload.train_persons_cnt))
-    val_pids_allowed = tuple(range(dataload.train_persons_cnt))
+    logbk['train_pids_allowed'] = tuple(range(dataload.train_persons_cnt))
+    logbk['val_pids_allowed'] = tuple(range(dataload.train_persons_cnt))
 
     if args.overfit:
         print('OVERFIT!' * 20)
-        train_pids_allowed = tuple([4,8,12,13])
-        val_pids_allowed = tuple([2000, 3000])
-        batch_size = 3
+        logbk['train_pids_allowed'] = tuple([4,8,12,13])
+        logbk['val_pids_allowed'] = tuple([2000, 3000])
+        args.batch_size = 3
 
     # Train data generator:
     train_set = msmt17_v1_utils.Dataset_msmt17(dataload=dataload, trainortest='train', pids_allowed=train_pids_allowed, mask_inputs=False, combine_mode='average v2')
@@ -116,9 +117,17 @@ if __name__ == '__main__':
             print(masks_pos_pair.shape, masks_neg_pair.shape)
             print(pos_pids)
             print(neg_pids)
-            print('intersectxxxx', train_set.intersection_amt_stats)
-            print('intersection', train_generator.dataset.intersection_amt_stats, 'max:', train_generator.dataset.intersection_amt_most_encountered)
-
+            # print('intersectxxxx', train_set.intersection_amt_stats)
+            # print('intersection', train_generator.dataset.intersection_amt_stats, 'max:', train_generator.dataset.intersection_amt_most_encountered)
+            
+            
+            self.intersection_amt_stats([interx_amt_pos_pair])
+            self.intersection_amt_most_encountered = max(interx_amt_pos_pair, self.intersection_amt_most_encountered)
+            self.intersection_amt_stats = Welford()
+        self.intersection_amt_most_encountered = 0 #init
+        print('intersection', self.intersection_amt_stats, 'max:', self.intersection_amt_most_encountered)
+        print('% IUV filled <p>: ', 1.0 * interx_amt_pos_pair / self.intersection_amt_most_encountered)
+        print('% IUV filled <n>: ', 1.0 * interx_amt_neg_pair / self.intersection_amt_most_encountered)
     exit()
 
 

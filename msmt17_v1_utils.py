@@ -245,8 +245,6 @@ class Dataset_msmt17(torch.utils.data.Dataset):
         self.pids_allowed = pids_allowed
         self.mask_inputs = mask_inputs
         self.combine_mode = combine_mode
-        self.intersection_amt_stats = Welford()
-        self.intersection_amt_most_encountered = 0 #init
 
     def __len__(self):
         return len(self.pids_allowed)
@@ -281,17 +279,9 @@ class Dataset_msmt17(torch.utils.data.Dataset):
         pos_pid = self.pids_allowed[index]
         S1, S2, mask_pos_pair = self.positive_pair(pid=pos_pid)
         interx_amt_pos_pair = np.sum(mask_pos_pair)
-        self.intersection_amt_stats([interx_amt_pos_pair]) # update
-        self.intersection_amt_most_encountered = max(interx_amt_pos_pair, self.intersection_amt_most_encountered) # update
         #
         S_neg, S_neg_2, mask_neg_pair, neg_pid = self.one_negative_sample(pos_pid=pos_pid, S_pos=S1)
         interx_amt_neg_pair = np.sum(mask_neg_pair)
-        self.intersection_amt_stats([interx_amt_neg_pair]) # update
-        self.intersection_amt_most_encountered = max(interx_amt_neg_pair, self.intersection_amt_most_encountered) # update
-        #
-        print('intersection', self.intersection_amt_stats, 'max:', self.intersection_amt_most_encountered)
-        print('% IUV filled <p>: ', 1.0 * interx_amt_pos_pair / self.intersection_amt_most_encountered)
-        print('% IUV filled <n>: ', 1.0 * interx_amt_neg_pair / self.intersection_amt_most_encountered)
         #
         if self.mask_inputs:
             S1 = apply_mask_to_IUVstack(S1, mask_pos_pair)
