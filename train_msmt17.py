@@ -19,13 +19,14 @@ from person_reid_nets import Siamese_Net
 from IUV_stack_utils import *  #TODO
 import msmt17_v1_utils
 from loss_and_metrics import ContrastiveLoss, scores, plot_scores
+from cmc import count as cmc_count
 
 
 if __name__ == '__main__':
+    script_start_time = "{:%m-%d-%H-%M-%S}".format(datetime.now()); print('script_start_time ', script_start_time)
     
     # Injecting intersection suffiency check.   IUV utils > intersection check & n_elements_can_hold_info.  Basically redo if cannot find sufficient intersection.
 
-    # argparse:
     parser = argparse.ArgumentParser()
     parser.add_argument('--odir', type=str, default='tmp',
                         help='output dir. e.g. \'expt-1\'.')
@@ -38,14 +39,13 @@ if __name__ == '__main__':
     parser.add_argument('--overfit', type=bool, default=True,
                         help='')                       
     args = parser.parse_args()
-    
+    [print(arg, ':', getattr(args, arg)) for arg in vars(args)]
     logbk = {}
 
     val_samples = 3
     epochs = 5000
     epochs_between_saves = 10
     plot_training_metric = True
-    plot_loss = True
     
     device = torch.device(args.device if torch.cuda.is_available() else "cpu")
     print('device: ', device)
@@ -82,7 +82,7 @@ if __name__ == '__main__':
     if args.overfit:
         print('OVERFIT!' * 20)
         logbk['train_pids_allowed'] = tuple([4,8,12,13,14])
-        logbk['val_pids_allowed'] = tuple([2000, 3000])
+        logbk['val_pids_allowed'] = tuple([2001, 2002, 2003, 2004, 3001, 3002, 3003, 3004])
         args.batch_size = 3
 
     # Train data generator:
@@ -103,14 +103,14 @@ if __name__ == '__main__':
     
     logbk['train_losses'] = [] # each element is 1 epoch.
     logbk['validation_losses'] = [] # each element is 1 epoch.
+    logbk['cmc'] = [] # each element is 1 epoch.
     logbk['intersection_amt_stats'] = Welford()
     logbk['intersection_amt_max'] = 0
 
     #most_info_in_an_input_so_far = 0.03 * (24 * 224 * 224 * 3) # 224 is h,w accepted into net. init.
     
     for epoch in range(epochs):
-        train_loss_per_batch = [] 
-        val_loss_1_epoch_tmp_record = []
+        train_loss_per_batch = []
         for i_batch, trn_data_batch in enumerate(train_generator):
             print('{} Batch [{}/ {}]'.format("{:%m-%d-%H-%M-%S}".format(datetime.now()), 
                                                         i_batch + 1, 
@@ -162,242 +162,75 @@ if __name__ == '__main__':
                 plt.close(fig)
             
             print('Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(epoch+1, 
-                                                                     max( (i_batch+1) * args.batch_size , len(train_set) ),
+                                                                     min( (i_batch+1) * args.batch_size , len(train_set) ),
                                                                      len(train_set),
-                                                                     100. * (i_batch+1) / args.batch_size, 
+                                                                     100. * (i_batch+1) / len(train_set), 
                                                                      loss.item()  ))
             
         #end batch
         logbk['train_losses'].append( np.sum(train_loss_per_batch) / (1.0 * len(train_loss_per_batch)) )
 
-        # insert save logbk here.
-
         if (epoch + 1) % epochs_between_saves == 0:
             torch.save(net.state_dict(), os.path.join(args.odir, 'net-ep-{}.chkpt'.format(epoch+1)) )
 
-        if plot_loss:
-            fig = plt.figure()
-            ax = fig.gca()
-            plt.title('train & val loss')
-            plt.plot(range(1, len(logbk['train_losses']) + 1), logbk['train_losses'], 'b')
-            plt.ylabel('loss'); plt.xlabel('epochs')
-            fig.savefig(os.path.join(args.odir, 'loss.jpg'))
-            plt.close(fig)
-        
-        
-    
-
-
-exit()
-# compute val loss.
-# compute val cmc.
-# plot val loss
-
-
-
-
-
-
-for x in wtf:
-
-
-    for epoch in range(epochs):
-        
-        #print(pids_shuffled.size)
-        n_batches = int(math.ceil( pids_shuffled.size / (batch_size*1.0) ))
-        # print(n_batches)
-        train_loss_batches = []
-        net.train()
-        for bidx in range(n_batches):
-            batch_pids = pids_shuffled.take(np.arange(batch_size) + batch_size * bidx, mode='wrap')
-            batch_of_IUV_stacks = []
-            for pid in batch_pids:
-                #print('pid ', pid)
-                pidstr = str(pid).zfill(4)
-                n_chips_avail = dataload.num_chips('train', pidstr)
-                chips = dataload.random_chips('train', pidstr, n_chips_avail)
-                split1 = chips[ : int(len(chips)/2)]
-                split2 = chips[int(len(chips)/2) : ]
-                S1 = combined_IUVstack_from_multiple_chips(dataload, pid=pidstr, chip_paths=split1, trainortest='train', combine_mode='average v2')
-                S2 = combined_IUVstack_from_multiple_chips(dataload, pid=pidstr, chip_paths=split2, trainortest='train', combine_mode='average v2')
-                batch_of_IUV_stacks.append( (S1.copy(), S2.copy()) )
-            #print('Done compute IUV stacks')
-            input1s = []; input2s = []; targets = []
-            for person in range(len(batch_of_IUV_stacks)):
-                ######## Same person pair ########
-                S1 = batch_of_IUV_stacks[person][0]
-                S2 = batch_of_IUV_stacks[person][1]
-                mask = get_intersection(S1, S2)          # intersect
-                most_info_in_an_input_so_far = max(np.sum(mask), most_info_in_an_input_so_far) # update
-                print('% IUV filled: ', 1.0 * np.sum(mask) / most_info_in_an_input_so_far)
-                S1 = apply_mask_to_IUVstack(S1, mask)
-                S2 = apply_mask_to_IUVstack(S2, mask)
-                S1 = preprocess_IUV_stack(S1, device)
-                S2 = preprocess_IUV_stack(S2, device)
-                input1s.append(S1); input2s.append(S2); targets.append(1)
-                ######## Diff persons pair ########
-                persons = list(range(len(batch_of_IUV_stacks)))
-                persons.remove(person)
-                another_person = random.choice(persons)
-                assert(person != another_person) # prevent edge cases like 1 person only in batch.
-                S1 = batch_of_IUV_stacks[person][random.randint(0,1)]
-                S2 = batch_of_IUV_stacks[another_person][random.randint(0,1)]
-                mask = get_intersection(S1, S2)          # intersect
-                most_info_in_an_input_so_far = max(np.sum(mask), most_info_in_an_input_so_far) # update
-                print('% IUV filled: ', 1.0 * np.sum(mask) / most_info_in_an_input_so_far)
-                S1 = apply_mask_to_IUVstack(S1, mask)
-                S2 = apply_mask_to_IUVstack(S2, mask)
-                S1 = preprocess_IUV_stack(S1, device)
-                S2 = preprocess_IUV_stack(S2, device)
-                input1s.append(S1); input2s.append(S2); targets.append(0)
-            assert(len(input1s) > 0)
-            assert( len(input1s) == len(input2s) and len(input2s) == len(targets) )
-            input1s, input2s, targets = torch.stack(input1s), torch.stack(input2s), torch.Tensor(targets)
-            #print(input1s.shape, input2s.shape, targets.shape)
-            # input1s = torch.randn(4,24*3,224,224)                   #HACK just to get it to compile.
-            # input2s = torch.randn(4,24*3,224,224)
-            # targets = torch.Tensor([1,0,1,0])
+        # Compute validation loss & CMC:
+        all_val_outputs1, all_val_outputs2 = None, None
+        val_loss = 0
+        net.train()  # IMPT #
+        for i_batch, data_batch in enumerate(validation_generator):
+            print('{} Validation Batch [{}/ {}]'.format("{:%m-%d-%H-%M-%S}".format(datetime.now()), 
+                                                        i_batch + 1, 
+                                                        len(validation_generator)))
+            S_pos1s, S_pos2s, S_neg1s, S_neg2s, targets_pos, targets_neg, interx_amts_pos_pair, interx_amts_neg_pair, masks_pos_pair, masks_neg_pair, pos_pids, neg_pids = data_batch
+            input1s, input2s, targets = torch.cat((S_pos1s, S_neg1s)), torch.cat((S_pos2s, S_neg2s)), torch.cat((targets_pos, targets_neg))
             input1s, input2s, targets = input1s.to(device), input2s.to(device), targets.to(device) # yes! must re-assign
-            optimizer.zero_grad()
             output1s, output2s = net(input1s, input2s)                       
-            loss = contrastive_loss(output1s, output2s, targets)
-            loss.backward()
-            optimizer.step()
+            loss = contrastive_loss(output1s, output2s, targets.float())
+            val_loss += loss.item()
+            # save embeddings for cmc computation later:
+            embeds1 = output1s[targets > 0.5,:].detach().numpy().copy()
+            embeds2 = output2s[targets > 0.5,:].detach().numpy().copy()
+            if all_val_outputs1 is None:
+                all_val_outputs1 = embeds1.copy()
+                all_val_outputs2 = embeds2.copy()
+            else:
+                all_val_outputs1 = np.concatenate((all_val_outputs1, embeds1))
+                all_val_outputs2 = np.concatenate((all_val_outputs2, embeds2))
+            #print('all_val_outputs1 & 2 shape', all_val_outputs1.shape, all_val_outputs2.shape)
+        logbk['validation_losses'].append( val_loss / (1.0 * len(validation_generator)) )
+        print('Epoch: {}\tVal Loss {}'.format(epoch+1, logbk['validation_losses'][-1]))
+        # Compute validation CMC:
+        assert(~np.array_equal(all_val_outputs1 , all_val_outputs2))
+        score_mat, _, _ = scores(all_val_outputs1, all_val_outputs2, distance_type)
+        distmat = 1 - score_mat
+        cmc_values = cmc_count(distmat=distmat, n_selected_labels=None, n_repeat=1)
+        try:
+            print('CMC ranks 1 5 10 20:', cmc_values[[0, 4, 9, 19]])
+        except Exception as e:
+            print(e)
+        logbk['cmc'].append(cmc_values.astype(np.float16))  # save
 
-            train_loss_batches.append(loss.cpu().numpy().copy())
+        pickle.dump(logbk, open(os.path.join(args.odir, 'trn-logbk-{}.pkl'.format(script_start_time)), 'wb'), protocol=2)
 
-            if plot_training_metric:
-                embeds1 = output1s[targets > 0.5,:].cpu().numpy().copy()
-                embeds2 = output2s[targets > 0.5,:].cpu().numpy().copy()
-                _, geniune_scores, imposter_scores = scores(embeds1, embeds2, distance_type)
-                print('G', geniune_scores)
-                print('IMP', imposter_scores)
-                fig, plt = plot_scores(geniune_scores, imposter_scores, 'Scores', bin_width=0.05)
-                fig.savefig(os.path.join(args.odir, 'tr-scores.jpg'))
-                plt.close(fig)
-            
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                epoch, (bidx+1) * batch_size, pids_shuffled.size,
-                100. * (bidx+1) / n_batches, loss.item()))
+        # Plot losses:
+        fig = plt.figure()
+        ax = fig.gca()
+        plt.title('Train & Validation Losses')
+        plt.plot(range(1, len(logbk['train_losses']) + 1), logbk['train_losses'], 'b', lw=1, label='train')
+        plt.plot(range(1, len(logbk['validation_losses']) + 1), logbk['validation_losses'], 'r', lw=1, label='validation')
+        plt.ylabel('Loss'); plt.xlabel('Epoch')
+        ax.legend()
+        fig.savefig(os.path.join(args.odir, 'loss.jpg'))
+        plt.close(fig)
+
+        # Plot CMC:
+        fig = plt.figure()
+        ax = fig.gca()
+        plt.title('Validation CMC')
+        plt.plot(range(1, len(cmc_values) + 1), cmc_values, 'b', lw=1)
+        plt.ylabel('Match rate'); plt.xlabel('Rank')
+        #plt.show()
+        fig.savefig(os.path.join(args.odir, 'val-cmc-{}.jpg'.format(script_start_time)))
+        plt.close(fig)  
         
-        train_loss_record.append( np.sum(train_loss_batches) / (1.0 * len(train_loss_batches)) )
 
-        if plot_loss:
-            fig = plt.figure()
-            ax = fig.gca()
-            plt.title('train & val loss')
-            plt.plot(range(1, len(train_loss_record) + 1), train_loss_record, 'b')
-            plt.ylabel('loss'); plt.xlabel('epochs')
-            fig.savefig(os.path.join(args.odir, 'loss.jpg'))
-            plt.close(fig)
-        
-        if (epoch + 1) % epochs_between_saves == 0:
-            torch.save(net.state_dict(), os.path.join(args.odir, 'net-ep-{}.chkpt'.format(epoch+1)) )
-
-
-
-exit()
-
-
-#------------------------------------------------------------------
-for x in wtf:
-    for epoch in range(epochs):
-        if not args.overfit:
-            pids_shuffled = np.random.permutation(dataload.train_persons_cnt)
-        else:
-            print('OVERFIT!' * 20)
-            pids_shuffled = np.array([4, 8, 13])
-            batch_size = 3
-        #print(pids_shuffled.size)
-        n_batches = int(math.ceil( pids_shuffled.size / (batch_size*1.0) ))
-        # print(n_batches)
-        train_loss_batches = []
-        net.train()
-        for bidx in range(n_batches):
-            batch_pids = pids_shuffled.take(np.arange(batch_size) + batch_size * bidx, mode='wrap')
-            batch_of_IUV_stacks = []
-            for pid in batch_pids:
-                #print('pid ', pid)
-                pidstr = str(pid).zfill(4)
-                n_chips_avail = dataload.num_chips('train', pidstr)
-                chips = dataload.random_chips('train', pidstr, n_chips_avail)
-                split1 = chips[ : int(len(chips)/2)]
-                split2 = chips[int(len(chips)/2) : ]
-                S1 = combined_IUVstack_from_multiple_chips(dataload, pid=pidstr, chip_paths=split1, trainortest='train', combine_mode='average v2')
-                S2 = combined_IUVstack_from_multiple_chips(dataload, pid=pidstr, chip_paths=split2, trainortest='train', combine_mode='average v2')
-                batch_of_IUV_stacks.append( (S1.copy(), S2.copy()) )
-            #print('Done compute IUV stacks')
-            input1s = []; input2s = []; targets = []
-            for person in range(len(batch_of_IUV_stacks)):
-                ######## Same person pair ########
-                S1 = batch_of_IUV_stacks[person][0]
-                S2 = batch_of_IUV_stacks[person][1]
-                mask = get_intersection(S1, S2)          # intersect
-                most_info_in_an_input_so_far = max(np.sum(mask), most_info_in_an_input_so_far) # update
-                print('% IUV filled: ', 1.0 * np.sum(mask) / most_info_in_an_input_so_far)
-                S1 = apply_mask_to_IUVstack(S1, mask)
-                S2 = apply_mask_to_IUVstack(S2, mask)
-                S1 = preprocess_IUV_stack(S1, device)
-                S2 = preprocess_IUV_stack(S2, device)
-                input1s.append(S1); input2s.append(S2); targets.append(1)
-                ######## Diff persons pair ########
-                persons = list(range(len(batch_of_IUV_stacks)))
-                persons.remove(person)
-                another_person = random.choice(persons)
-                assert(person != another_person) # prevent edge cases like 1 person only in batch.
-                S1 = batch_of_IUV_stacks[person][random.randint(0,1)]
-                S2 = batch_of_IUV_stacks[another_person][random.randint(0,1)]
-                mask = get_intersection(S1, S2)          # intersect
-                most_info_in_an_input_so_far = max(np.sum(mask), most_info_in_an_input_so_far) # update
-                print('% IUV filled: ', 1.0 * np.sum(mask) / most_info_in_an_input_so_far)
-                S1 = apply_mask_to_IUVstack(S1, mask)
-                S2 = apply_mask_to_IUVstack(S2, mask)
-                S1 = preprocess_IUV_stack(S1, device)
-                S2 = preprocess_IUV_stack(S2, device)
-                input1s.append(S1); input2s.append(S2); targets.append(0)
-            assert(len(input1s) > 0)
-            assert( len(input1s) == len(input2s) and len(input2s) == len(targets) )
-            input1s, input2s, targets = torch.stack(input1s), torch.stack(input2s), torch.Tensor(targets)
-            #print(input1s.shape, input2s.shape, targets.shape)
-            # input1s = torch.randn(4,24*3,224,224)                   #HACK just to get it to compile.
-            # input2s = torch.randn(4,24*3,224,224)
-            # targets = torch.Tensor([1,0,1,0])
-            input1s, input2s, targets = input1s.to(device), input2s.to(device), targets.to(device) # yes! must re-assign
-            optimizer.zero_grad()
-            output1s, output2s = net(input1s, input2s)                       
-            loss = contrastive_loss(output1s, output2s, targets)
-            loss.backward()
-            optimizer.step()
-
-            train_loss_batches.append(loss.cpu().numpy().copy())
-
-            if plot_training_metric:
-                embeds1 = output1s[targets > 0.5,:].cpu().numpy().copy()
-                embeds2 = output2s[targets > 0.5,:].cpu().numpy().copy()
-                _, geniune_scores, imposter_scores = scores(embeds1, embeds2, distance_type)
-                print('G', geniune_scores)
-                print('IMP', imposter_scores)
-                fig, plt = plot_scores(geniune_scores, imposter_scores, 'Scores', bin_width=0.05)
-                fig.savefig(os.path.join(args.odir, 'tr-scores.jpg'))
-                plt.close(fig)
-            
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                epoch, (bidx+1) * batch_size, pids_shuffled.size,
-                100. * (bidx+1) / n_batches, loss.item()))
-        
-        train_loss_record.append( np.sum(train_loss_batches) / (1.0 * len(train_loss_batches)) )
-
-        if plot_loss:
-            fig = plt.figure()
-            ax = fig.gca()
-            plt.title('train & val loss')
-            plt.plot(range(1, len(train_loss_record) + 1), train_loss_record, 'b')
-            plt.ylabel('loss'); plt.xlabel('epochs')
-            fig.savefig(os.path.join(args.odir, 'loss.jpg'))
-            plt.close(fig)
-        
-        if (epoch + 1) % epochs_between_saves == 0:
-            torch.save(net.state_dict(), os.path.join(args.odir, 'net-ep-{}.chkpt'.format(epoch+1)) )
-
-        # for k epochs, run 1 validation.
-        
