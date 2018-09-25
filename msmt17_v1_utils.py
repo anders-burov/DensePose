@@ -4,7 +4,6 @@ import glob
 import numpy as np
 import cv2
 import random
-from welford import Welford
 import torch
 from IUV_stack_utils import inds_value_of_most_prominent_person, \
                             IUV_with_only_this_inds_value, \

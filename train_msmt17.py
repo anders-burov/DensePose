@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import argparse
 import pickle
 import numpy as np
+from welford import Welford
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -31,7 +32,7 @@ if __name__ == '__main__':
     parser.add_argument('--device', type=str, default='cuda',
                         help='gpu or cpu device. cuda cuda:0 cuda:1 cpu')
     parser.add_argument('--batch_size', type=int, default=50,
-                        help='If batch size is 4, there\'ll be 4 positive pairs and 4 negative pairs per batch. Implies 8 pairs per batch.")
+                        help="If batch size is 4, there\'ll be 4 positive pairs and 4 negative pairs per batch. Implies 8 pairs per batch.")
     parser.add_argument('--num_workers', type=int, default=1,
                         help='num workers on dataloaders.')
     parser.add_argument('--overfit', type=bool, default=True,
@@ -85,22 +86,27 @@ if __name__ == '__main__':
         args.batch_size = 3
 
     # Train data generator:
-    train_set = msmt17_v1_utils.Dataset_msmt17(dataload=dataload, trainortest='train', pids_allowed=train_pids_allowed, mask_inputs=False, combine_mode='average v2')
+    train_set = msmt17_v1_utils.Dataset_msmt17(dataload=dataload, trainortest='train', pids_allowed=logbk['train_pids_allowed'], mask_inputs=False, combine_mode='average v2')
     train_generator = torch.utils.data.DataLoader(train_set,
                                             batch_size=args.batch_size, 
                                             shuffle=True,
                                             num_workers=args.num_workers,
                                             drop_last = False)
     # Validation data generator:
-    validation_set = msmt17_v1_utils.Dataset_msmt17(dataload=dataload, trainortest='test', pids_allowed=val_pids_allowed, mask_inputs=False, combine_mode='average v2')
+    validation_set = msmt17_v1_utils.Dataset_msmt17(dataload=dataload, trainortest='test', pids_allowed=logbk['val_pids_allowed'], mask_inputs=False, combine_mode='average v2')
     validation_generator = torch.utils.data.DataLoader(validation_set, 
                                             batch_size=args.batch_size, 
                                             shuffle=False,
                                             num_workers=args.num_workers,
                                             drop_last = False)
 
-    train_loss_record = []
-    val_loss_record = []
+    train_loss_1_epoch_tmp_record = [] 
+    val_loss_1_epoch_tmp_record = []
+    logbk['train_losses'] = [] # each element is 1 epoch.
+    logbk['validation_losses'] = [] # each element is 1 epoch.
+    logbk['intersection_amt_stats'] = Welford()
+    logbk['intersection_amt_max'] = 0
+
     #most_info_in_an_input_so_far = 0.03 * (24 * 224 * 224 * 3) # 224 is h,w accepted into net. init.
 
     for epoch in range(epochs):
@@ -110,25 +116,30 @@ if __name__ == '__main__':
                                                         len(train_generator)))
             S_pos1s, S_pos2s, S_neg1s, S_neg2s, targets_pos, targets_neg, interx_amts_pos_pair, interx_amts_neg_pair, masks_pos_pair, masks_neg_pair, pos_pids, neg_pids = trn_data_batch
             
-            print(S_pos1s.shape, S_pos2s.shape, S_neg1s.shape)
-            print(targets_pos[0:3])
-            print(targets_neg[0:3])
-            print(interx_amts_pos_pair[0:3])
-            print(masks_pos_pair.shape, masks_neg_pair.shape)
-            print(pos_pids)
-            print(neg_pids)
-            # print('intersectxxxx', train_set.intersection_amt_stats)
-            # print('intersection', train_generator.dataset.intersection_amt_stats, 'max:', train_generator.dataset.intersection_amt_most_encountered)
+            # print(S_pos1s.shape, S_pos2s.shape, S_neg1s.shape)
+            # print(targets_pos[0:3])
+            # print(targets_neg[0:3])
+            # print(interx_amts_pos_pair[0:3])
+            # print(masks_pos_pair.shape, masks_neg_pair.shape)
+            # print(pos_pids)
+            # print(neg_pids)
             
-            
-            self.intersection_amt_stats([interx_amt_pos_pair])
-            self.intersection_amt_most_encountered = max(interx_amt_pos_pair, self.intersection_amt_most_encountered)
-            self.intersection_amt_stats = Welford()
-        self.intersection_amt_most_encountered = 0 #init
-        print('intersection', self.intersection_amt_stats, 'max:', self.intersection_amt_most_encountered)
-        print('% IUV filled <p>: ', 1.0 * interx_amt_pos_pair / self.intersection_amt_most_encountered)
-        print('% IUV filled <n>: ', 1.0 * interx_amt_neg_pair / self.intersection_amt_most_encountered)
-    exit()
+            # Update intersection amt stats:
+            interx_amts_1 = interx_amts_pos_pair.view(-1).cpu().numpy().copy()
+            interx_amts_2 = interx_amts_neg_pair.view(-1).cpu().numpy().copy()
+            interx_amts_list = np.ndarray.tolist(np.concatenate((interx_amts_1, interx_amts_2)))
+            logbk['intersection_amt_stats'](interx_amts_list)                                           #update
+            logbk['intersection_amt_max'] = max(logbk['intersection_amt_max'], max(interx_amts_list))   #update
+            print('Intersection', logbk['intersection_amt_stats'], 'max:', logbk['intersection_amt_max'])
+            # print('% IUV filled <p>: ', 1.0 * interx_amt_pos_pair / self.intersection_amt_most_encountered)
+            # print('% IUV filled <n>: ', 1.0 * interx_amt_neg_pair / self.intersection_amt_most_encountered)
+
+
+
+    # compute val loss
+
+
+exit()
 
 
 
