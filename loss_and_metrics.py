@@ -2,6 +2,7 @@ from __future__ import print_function
 import math
 import random
 import os
+import numpy as np
 from sklearn.metrics.pairwise import pairwise_distances
 import torch
 import torch.nn as nn

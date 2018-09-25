@@ -1,4 +1,5 @@
 from __future__ import print_function
+from datetime import datetime
 import math
 import random
 import os
@@ -78,18 +79,18 @@ if __name__ == '__main__':
 
     if args.overfit:
         print('OVERFIT!' * 20)
-        train_pids_allowed = tuple([4,8,13])
+        train_pids_allowed = tuple([4,8,12,13])
         val_pids_allowed = tuple([2000, 3000])
         batch_size = 3
 
-    # Generators:
+    # Train data generator:
     train_set = msmt17_v1_utils.Dataset_msmt17(dataload=dataload, trainortest='train', pids_allowed=train_pids_allowed, mask_inputs=False, combine_mode='average v2')
     train_generator = torch.utils.data.DataLoader(train_set,
                                             batch_size=args.batch_size, 
                                             shuffle=True,
                                             num_workers=args.num_workers,
                                             drop_last = False)
-    print('STOPPED WORK HERE!')
+    # Validation data generator:
     validation_set = msmt17_v1_utils.Dataset_msmt17(dataload=dataload, trainortest='test', pids_allowed=val_pids_allowed, mask_inputs=False, combine_mode='average v2')
     validation_generator = torch.utils.data.DataLoader(validation_set, 
                                             batch_size=args.batch_size, 
@@ -102,7 +103,22 @@ if __name__ == '__main__':
     #most_info_in_an_input_so_far = 0.03 * (24 * 224 * 224 * 3) # 224 is h,w accepted into net. init.
 
     for epoch in range(epochs):
-        print(epoch)
+        for i_batch, trn_data_batch in enumerate(train_generator):
+            print('{} Batch [{}/ {}]'.format("{:%m-%d-%H-%M-%S}".format(datetime.now()), 
+                                                        i_batch + 1, 
+                                                        len(train_generator)))
+            S_pos1s, S_pos2s, S_neg1s, S_neg2s, targets_pos, targets_neg, interx_amts_pos_pair, interx_amts_neg_pair, masks_pos_pair, masks_neg_pair, pos_pids, neg_pids = trn_data_batch
+            
+            print(S_pos1s.shape, S_pos2s.shape, S_neg1s.shape)
+            print(targets_pos[0:3])
+            print(targets_neg[0:3])
+            print(interx_amts_pos_pair[0:3])
+            print(masks_pos_pair.shape, masks_neg_pair.shape)
+            print(pos_pids)
+            print(neg_pids)
+            print('intersectxxxx', train_set.intersection_amt_stats)
+            print('intersection', train_generator.dataset.intersection_amt_stats, 'max:', train_generator.dataset.intersection_amt_most_encountered)
+
     exit()
 
 
@@ -111,10 +127,7 @@ if __name__ == '__main__':
 
 
 
-
-
-
-
+for x in wtf:
 
 
     for epoch in range(epochs):
@@ -216,7 +229,7 @@ exit()
 
 
 #------------------------------------------------------------------
-
+for x in wtf:
     for epoch in range(epochs):
         if not args.overfit:
             pids_shuffled = np.random.permutation(dataload.train_persons_cnt)
