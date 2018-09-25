@@ -3,12 +3,12 @@ from datetime import datetime
 import math
 import random
 import os
-from sklearn.metrics.pairwise import pairwise_distances
-import matplotlib.pyplot as plt
 import argparse
 import pickle
 import numpy as np
 from welford import Welford
+import matplotlib.pyplot as plt
+from sklearn.metrics.pairwise import pairwise_distances
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -81,7 +81,7 @@ if __name__ == '__main__':
 
     if args.overfit:
         print('OVERFIT!' * 20)
-        logbk['train_pids_allowed'] = tuple([4,8,12,13])
+        logbk['train_pids_allowed'] = tuple([4,8,12,13,14])
         logbk['val_pids_allowed'] = tuple([2000, 3000])
         args.batch_size = 3
 
@@ -100,16 +100,17 @@ if __name__ == '__main__':
                                             num_workers=args.num_workers,
                                             drop_last = False)
 
-    train_loss_1_epoch_tmp_record = [] 
-    val_loss_1_epoch_tmp_record = []
+    
     logbk['train_losses'] = [] # each element is 1 epoch.
     logbk['validation_losses'] = [] # each element is 1 epoch.
     logbk['intersection_amt_stats'] = Welford()
     logbk['intersection_amt_max'] = 0
 
     #most_info_in_an_input_so_far = 0.03 * (24 * 224 * 224 * 3) # 224 is h,w accepted into net. init.
-
+    
     for epoch in range(epochs):
+        train_loss_per_batch = [] 
+        val_loss_1_epoch_tmp_record = []
         for i_batch, trn_data_batch in enumerate(train_generator):
             print('{} Batch [{}/ {}]'.format("{:%m-%d-%H-%M-%S}".format(datetime.now()), 
                                                         i_batch + 1, 
@@ -117,7 +118,7 @@ if __name__ == '__main__':
             S_pos1s, S_pos2s, S_neg1s, S_neg2s, targets_pos, targets_neg, interx_amts_pos_pair, interx_amts_neg_pair, masks_pos_pair, masks_neg_pair, pos_pids, neg_pids = trn_data_batch
             
             # print(S_pos1s.shape, S_pos2s.shape, S_neg1s.shape)
-            # print(targets_pos[0:3])
+            # print(targets_pos.shape, targets_pos[0:3])
             # print(targets_neg[0:3])
             # print(interx_amts_pos_pair[0:3])
             # print(masks_pos_pair.shape, masks_neg_pair.shape)
@@ -133,14 +134,64 @@ if __name__ == '__main__':
             print('Intersection', logbk['intersection_amt_stats'], 'max:', logbk['intersection_amt_max'])
             # print('% IUV filled <p>: ', 1.0 * interx_amt_pos_pair / self.intersection_amt_most_encountered)
             # print('% IUV filled <n>: ', 1.0 * interx_amt_neg_pair / self.intersection_amt_most_encountered)
+            
+            input1s, input2s, targets = torch.cat((S_pos1s, S_neg1s)), torch.cat((S_pos2s, S_neg2s)), torch.cat((targets_pos, targets_neg))
+            # print(input1s.shape, input2s.shape, targets.shape)
+            # print(targets)
+            # input1s = torch.randn(4,24*3,224,224)                   #HACK just to get it to compile.
+            # input2s = torch.randn(4,24*3,224,224)
+            # targets = torch.Tensor([1,0,1,0])
+            input1s, input2s, targets = input1s.to(device), input2s.to(device), targets.to(device) # yes! must re-assign
+            net.train()         # IMPT #
+            optimizer.zero_grad()
+            output1s, output2s = net(input1s, input2s)                       
+            loss = contrastive_loss(output1s, output2s, targets.float())
+            loss.backward()
+            optimizer.step()
 
+            train_loss_per_batch.append(loss.item())
 
+            if plot_training_metric:
+                embeds1 = output1s[targets > 0.5,:].detach().numpy().copy()
+                embeds2 = output2s[targets > 0.5,:].detach().numpy().copy()
+                _, geniune_scores, imposter_scores = scores(embeds1, embeds2, distance_type)
+                print('G', geniune_scores)
+                print('IMP', imposter_scores)
+                fig, plt = plot_scores(geniune_scores, imposter_scores, 'Scores', bin_width=0.05)
+                fig.savefig(os.path.join(args.odir, 'tr-scores.jpg'))
+                plt.close(fig)
+            
+            print('Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(epoch+1, 
+                                                                     max( (i_batch+1) * args.batch_size , len(train_set) ),
+                                                                     len(train_set),
+                                                                     100. * (i_batch+1) / args.batch_size, 
+                                                                     loss.item()  ))
+            
+        #end batch
+        logbk['train_losses'].append( np.sum(train_loss_per_batch) / (1.0 * len(train_loss_per_batch)) )
 
-    # compute val loss
+        # insert save logbk here.
+
+        if (epoch + 1) % epochs_between_saves == 0:
+            torch.save(net.state_dict(), os.path.join(args.odir, 'net-ep-{}.chkpt'.format(epoch+1)) )
+
+        if plot_loss:
+            fig = plt.figure()
+            ax = fig.gca()
+            plt.title('train & val loss')
+            plt.plot(range(1, len(logbk['train_losses']) + 1), logbk['train_losses'], 'b')
+            plt.ylabel('loss'); plt.xlabel('epochs')
+            fig.savefig(os.path.join(args.odir, 'loss.jpg'))
+            plt.close(fig)
+        
+        
+    
 
 
 exit()
-
+# compute val loss.
+# compute val cmc.
+# plot val loss
 
 
 

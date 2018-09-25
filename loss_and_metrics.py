@@ -3,6 +3,7 @@ import math
 import random
 import os
 import numpy as np
+import matplotlib.pyplot as plt
 from sklearn.metrics.pairwise import pairwise_distances
 import torch
 import torch.nn as nn
@@ -111,7 +112,7 @@ def scores(embeds1, embeds2, metric):
     # where embeds1[i,:] and embeds2[i,:] represent embeddings from
     # the SAME person.
     if metric == 'cosine':
-        assert(np.array_equal(embeds1, embeds2))
+        #assert(np.array_equal(embeds1, embeds2))
         D = pairwise_distances(embeds1, embeds2, metric='cosine')
         D = (D - 1.0) * -1.0  # Compute similarity from distances.
         non_diag_coords = np.where(~np.eye(D.shape[0],dtype=bool))

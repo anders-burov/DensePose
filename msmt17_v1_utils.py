@@ -292,7 +292,7 @@ class Dataset_msmt17(torch.utils.data.Dataset):
         S_pos2 = preprocess_IUV_stack(S2)
         S_neg1 = preprocess_IUV_stack(S_neg)
         S_neg2 = preprocess_IUV_stack(S_neg_2)
-        target_pos = np.array([1])
-        target_neg = np.array([0])
+        target_pos = 1 # don't use np.array([1])
+        target_neg = 0
         #
         return S_pos1, S_pos2, S_neg1, S_neg2, target_pos, target_neg, interx_amt_pos_pair, interx_amt_neg_pair, mask_pos_pair, mask_neg_pair, pos_pid, neg_pid
