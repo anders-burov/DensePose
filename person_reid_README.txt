@@ -22,12 +22,13 @@ example-siamese.py  Example siamese ent.
 example_basic_train.py  Example basic training. There's a newer training script e.g. train_msmt17.py
 
 train_msmt17.py         Training.
+PLEASE SEE THE EMBEDDING LOSS YOU'RE USING IN THE CODE.
 overfit:
 $ python train_msmt17.py --device="cuda:3" --num_worker=2
 Example of real training:
 $ python train_msmt17.py --odir="expt-32-twomarg-0.1-0.7-nomask" --device="cuda:3" --batch_size 32 --num_worker 8 --overfit 0
 
-test_MSMT17_v2.py       
+test_MSMT17_v2.py
 For testing net.
 $ python test_MSMT17_v2.py --net="expt-32-twomarg-0.1-0.7/net-ep-40.chkpt" --pos_margin=0.1 --neg_margin=0.7 --odir="tmp/p0.1n0.1ep40" --n_probes=50 --n_gallery=450 --batch_size=25 --num_worker=8
 

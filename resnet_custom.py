@@ -95,20 +95,20 @@ class Bottleneck(nn.Module):
 
 class ResNet(nn.Module):
 
-    def __init__(self, block, layers, input_channels, num_classes=1000):
-        self.inplanes = 64
+    def __init__(self, block, layers, input_channels, inplanes=64, planes_of_layers=(64, 128, 256, 512), num_classes=1000):
+        self.inplanes = inplanes
         super(ResNet, self).__init__()
-        self.conv1 = nn.Conv2d(input_channels, 64, kernel_size=7, stride=2, padding=3,
+        self.conv1 = nn.Conv2d(input_channels, inplanes, kernel_size=7, stride=2, padding=3,
                                bias=False)
-        self.bn1 = nn.BatchNorm2d(64)
+        self.bn1 = nn.BatchNorm2d(inplanes)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        self.layer1 = self._make_layer(block, 64, layers[0])
-        self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
-        self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
-        self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
+        self.layer1 = self._make_layer(block, planes_of_layers[0], layers[0])
+        self.layer2 = self._make_layer(block, planes_of_layers[1], layers[1], stride=2)
+        self.layer3 = self._make_layer(block, planes_of_layers[2], layers[2], stride=2)
+        self.layer4 = self._make_layer(block, planes_of_layers[3], layers[3], stride=2)
         self.avgpool = nn.AvgPool2d(7, stride=1)
-        self.fc = nn.Linear(512 * block.expansion, num_classes)
+        self.fc = nn.Linear(planes_of_layers[3] * block.expansion, num_classes)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -126,6 +126,7 @@ class ResNet(nn.Module):
                           kernel_size=1, stride=stride, bias=False),
                 nn.BatchNorm2d(planes * block.expansion),
             )
+            print('inplanes', self.inplanes, 'neq planes*block.expansion', planes*block.expansion)
 
         layers = []
         layers.append(block(self.inplanes, planes, stride, downsample))
