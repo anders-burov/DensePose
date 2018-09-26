@@ -38,7 +38,7 @@ if __name__ == '__main__':
                         help='Number of epochs to train for.')
     parser.add_argument('--epochs_between_saves', type=int, default=10,
                         help='Save after this many epochs')
-    parser.add_argument('--batch_size', type=int, default=50,
+    parser.add_argument('--batch_size', type=int, default=32,
                         help="If batch size is 4, there\'ll be 4 positive pairs and 4 negative pairs per batch. Implies 8 pairs per batch.")
     parser.add_argument('--val_size', type=int, default=100,
                         help="Validation size.")                    
