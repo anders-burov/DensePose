@@ -173,10 +173,11 @@ if __name__ == '__main__':
                 fig.savefig(os.path.join(args.odir, 'tr-scores.jpg'))
                 plt.close(fig)
             
-            print('Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(epoch+1, 
-                                                                     min( (i_batch+1) * args.batch_size , len(train_set) ),
+            n_pids_done = min( (i_batch+1) * args.batch_size , len(train_set) )
+            print('Epoch: {} [{}/{} ({:.1f}%)]\tLoss: {:.6f}'.format(epoch+1, 
+                                                                     n_pids_done,
                                                                      len(train_set),
-                                                                     100. * (i_batch+1) / len(train_set), 
+                                                                     100. * n_pids_done / len(train_set), 
                                                                      loss.item()  ))
             
         #end batch
@@ -188,7 +189,7 @@ if __name__ == '__main__':
         # Compute validation loss & CMC:
         all_val_outputs1, all_val_outputs2 = None, None
         val_loss = 0
-        net.train()  # IMPT #
+        net.eval()  # IMPT #
         for i_batch, data_batch in enumerate(validation_generator):
             print('{} Validation Batch [{}/ {}]'.format("{:%m-%d-%H-%M-%S}".format(datetime.now()), 
                                                         i_batch + 1, 
