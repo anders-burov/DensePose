@@ -74,11 +74,20 @@ if __name__ == '__main__':
     print('Actual device: ', device)
     
     load_net_path = '' #'net-ep-2.chkpt'
-    net = resnet_custom.resnet18(input_channels=24*3, num_classes=256)
+    resnet_args = {'block':resnet_custom.BasicBlock, 
+                   'layers':[2, 2, 2, 2], 
+                   'inplanes':256,
+                   'planes_of_layers':(256, 512, 1024, 2048),
+                   'input_channels':24*3,
+                   'num_classes':256}
+    print('resnet_args:', resnet_args)
+    # net = resnet_custom.resnet18(input_channels=24*3, num_classes=256)
+    net = resnet_custom.ResNet(**resnet_args)
     net = Siamese_Net(net)
     if load_net_path:
         net.load_state_dict(torch.load(load_net_path))
     net = net.to(device)
+
     contrastive_loss = ContrastiveLoss(option='two margin cosine', pos_margin=0.1, neg_margin=0.7)
     distance_type = 'cosine'
     # contrastive_loss = ContrastiveLoss(option='cosine')

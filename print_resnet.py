@@ -17,10 +17,19 @@ from torchsummary import summary
 
 
 if __name__ == "__main__":
+
+    resnet_args = {'block':resnet_custom.BasicBlock, 
+                   'layers':[2, 2, 2, 2], 
+                   'inplanes':256,
+                   'planes_of_layers':(256, 512, 1024, 2048),
+                   'input_channels':24*3,
+                   'num_classes':256}
+    print('resnet_args', resnet_args)
+    net = resnet_custom.ResNet(**resnet_args)
     # net = resnet_custom.resnet18(input_channels=24*3, num_classes=256)
     #net = resnet_custom.ResNet(resnet_custom.BasicBlock, [1, 1, 1, 1], input_channels=24*3, num_classes=256)
-    net = resnet_custom.ResNet(resnet_custom.BasicBlock, layers=[2, 2, 2, 2], 
-                                inplanes=256, planes_of_layers=(256, 512, 1024, 2048), input_channels=24*3, num_classes=256)
+    # net = resnet_custom.ResNet(resnet_custom.BasicBlock, layers=[2, 2, 2, 2], 
+    #                             inplanes=256, planes_of_layers=(256, 512, 1024, 2048), input_channels=24*3, num_classes=256)
     # net = resnet_custom.resnet152(input_channels=24*3, num_classes=256)
     # net = resnet_custom.ResNet(resnet_custom.BasicBlock, layers=[2, 2, 2, 2], 
     #                             inplanes=256, planes_of_layers=(128, 256, 512, 1024), input_channels=24*3, num_classes=256)
