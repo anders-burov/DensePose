@@ -28,31 +28,51 @@ if __name__ == '__main__':
     # Injecting intersection suffiency check.   IUV utils > intersection check & n_elements_can_hold_info.  Basically redo if cannot find sufficient intersection.
 
     parser = argparse.ArgumentParser()
+    parser.add_argument('--overfit', type=int, default=1,
+                        help='')
     parser.add_argument('--odir', type=str, default='tmp',
                         help='output dir. e.g. \'expt-1\'.')
     parser.add_argument('--device', type=str, default='cuda',
                         help='gpu or cpu device. cuda cuda:0 cuda:1 cpu')
+    parser.add_argument('--epochs', type=int, default=2000,
+                        help='Number of epochs to train for.')
+    parser.add_argument('--epochs_between_saves', type=int, default=10,
+                        help='Save after this many epochs')
     parser.add_argument('--batch_size', type=int, default=50,
                         help="If batch size is 4, there\'ll be 4 positive pairs and 4 negative pairs per batch. Implies 8 pairs per batch.")
+    parser.add_argument('--val_size', type=int, default=100,
+                        help="Validation size.")                    
     parser.add_argument('--num_workers', type=int, default=1,
                         help='num workers on dataloaders.')
-    parser.add_argument('--overfit', type=bool, default=True,
-                        help='')                       
     args = parser.parse_args()
-    [print(arg, ':', getattr(args, arg)) for arg in vars(args)]
+
     logbk = {}
 
-    val_samples = 3
-    epochs = 5000
-    epochs_between_saves = 10
-    plot_training_metric = True
-    
-    device = torch.device(args.device if torch.cuda.is_available() else "cpu")
-    print('device: ', device)
     dataload = msmt17_v1_utils.MSMT17_V1_Load_Data_Utils(images_train_dir='/data/MSMT17_V1/train', 
                                                             images_test_dir='/data/MSMT17_V1/test', 
                                                             denseposeoutput_train_dir='/data/IUV-densepose/MSMT17_V1/train', 
                                                             denseposeoutput_test_dir='/data/IUV-densepose/MSMT17_V1/test')
+
+    if args.overfit == 1:
+        print('OVERFIT!' * 20)
+        logbk['train_pids_allowed'] = tuple([4,8,12,13,14])
+        logbk['val_pids_allowed'] = tuple([2001, 2002, 2003, 2004, 3001, 3002, 3003, 3004])
+        args.batch_size = 3
+        args.val_size = len(logbk['val_pids_allowed'])
+    else:
+        logbk['train_pids_allowed'] = tuple(range(dataload.train_persons_cnt))
+        assert(len(logbk['train_pids_allowed']) > 10 and len(logbk['train_pids_allowed']) <= 1041)
+        val_pids_shuffled = np.random.permutation(dataload.test_persons_cnt)
+        logbk['val_pids_allowed'] = tuple(val_pids_shuffled[:args.val_size])
+    
+    print('val_pids_allowed:', logbk['val_pids_allowed'])
+    [print(arg, ':', getattr(args, arg)) for arg in vars(args)]
+
+    plot_training_metric = True
+    
+    device = torch.device(args.device if torch.cuda.is_available() else "cpu")
+    print('Actual device: ', device)
+    
     load_net_path = '' #'net-ep-2.chkpt'
     net = resnet_custom.resnet18(input_channels=24*3, num_classes=256)
     net = Siamese_Net(net)
@@ -76,15 +96,7 @@ if __name__ == '__main__':
     else:
         print('Overwriting ', args.odir, '!'*100)
     
-    logbk['train_pids_allowed'] = tuple(range(dataload.train_persons_cnt))
-    logbk['val_pids_allowed'] = tuple(range(dataload.train_persons_cnt))
-
-    if args.overfit:
-        print('OVERFIT!' * 20)
-        logbk['train_pids_allowed'] = tuple([4,8,12,13,14])
-        logbk['val_pids_allowed'] = tuple([2001, 2002, 2003, 2004, 3001, 3002, 3003, 3004])
-        args.batch_size = 3
-
+    
     # Train data generator:
     train_set = msmt17_v1_utils.Dataset_msmt17(dataload=dataload, trainortest='train', pids_allowed=logbk['train_pids_allowed'], mask_inputs=False, combine_mode='average v2')
     train_generator = torch.utils.data.DataLoader(train_set,
@@ -109,7 +121,7 @@ if __name__ == '__main__':
 
     #most_info_in_an_input_so_far = 0.03 * (24 * 224 * 224 * 3) # 224 is h,w accepted into net. init.
     
-    for epoch in range(epochs):
+    for epoch in range(args.epochs):
         train_loss_per_batch = []
         for i_batch, trn_data_batch in enumerate(train_generator):
             print('{} Batch [{}/ {}]'.format("{:%m-%d-%H-%M-%S}".format(datetime.now()), 
@@ -170,7 +182,7 @@ if __name__ == '__main__':
         #end batch
         logbk['train_losses'].append( np.sum(train_loss_per_batch) / (1.0 * len(train_loss_per_batch)) )
 
-        if (epoch + 1) % epochs_between_saves == 0:
+        if (epoch + 1) % args.epochs_between_saves == 0:
             torch.save(net.state_dict(), os.path.join(args.odir, 'net-ep-{}.chkpt'.format(epoch+1)) )
 
         # Compute validation loss & CMC:

@@ -22,8 +22,10 @@ example-siamese.py  Example siamese ent.
 example_basic_train.py  Example basic training. There's a newer training script e.g. train_msmt17.py
 
 train_msmt17.py         Training.
-overfit:
+E.g. of overfit:
 $ python train_msmt17.py --device="cuda:3" --num_worker=2
+E.g. of real train:
+$ python train_msmt17.py --odir="expt-32-twomarg-0.1-0.7-nomask" --device="cuda:3" --batch_size 32 --num_worker 8 --overfit 0
 
 test_MSMT17_v2.py       
 For testing net.
