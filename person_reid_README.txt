@@ -22,6 +22,8 @@ example-siamese.py  Example siamese ent.
 example_basic_train.py  Example basic training.
 
 train_msmt17.py         Training.
+overfit:
+$ python train_msmt17.py --device="cuda:3" --num_worker=2
 
 test_MSMT17_v2.py       
 For testing net.
@@ -52,5 +54,6 @@ loss_and_metrics.py
 Losses, metrics, and plotting code.
 
 msmt17_v1_utils.py
-Codes for dealing with msmt17_v1 dataset.
+Codes for dealing with msmt17 dataset.
+Codes for msmt17 pytorch Dataset class.
 

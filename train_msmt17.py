@@ -16,7 +16,7 @@ import torchvision.models as models
 # from torchsummary import summary    # sigh not working on pyhon 2.7 Sep 2018
 import resnet_custom
 from person_reid_nets import Siamese_Net
-from IUV_stack_utils import *  #TODO
+# from IUV_stack_utils import *  #TODO
 import msmt17_v1_utils
 from loss_and_metrics import ContrastiveLoss, scores, plot_scores
 from cmc import count as cmc_count
@@ -151,9 +151,9 @@ if __name__ == '__main__':
 
             train_loss_per_batch.append(loss.item())
 
-            if plot_training_metric:
-                embeds1 = output1s[targets > 0.5,:].detach().numpy().copy()
-                embeds2 = output2s[targets > 0.5,:].detach().numpy().copy()
+            if plot_training_metric and i_batch == 0:
+                embeds1 = output1s[targets > 0.5,:].cpu().detach().numpy().copy()
+                embeds2 = output2s[targets > 0.5,:].cpu().detach().numpy().copy()
                 _, geniune_scores, imposter_scores = scores(embeds1, embeds2, distance_type)
                 print('G', geniune_scores)
                 print('IMP', imposter_scores)
@@ -188,8 +188,8 @@ if __name__ == '__main__':
             loss = contrastive_loss(output1s, output2s, targets.float())
             val_loss += loss.item()
             # save embeddings for cmc computation later:
-            embeds1 = output1s[targets > 0.5,:].detach().numpy().copy()
-            embeds2 = output2s[targets > 0.5,:].detach().numpy().copy()
+            embeds1 = output1s[targets > 0.5,:].cpu().detach().numpy().copy()
+            embeds2 = output2s[targets > 0.5,:].cpu().detach().numpy().copy()
             if all_val_outputs1 is None:
                 all_val_outputs1 = embeds1.copy()
                 all_val_outputs2 = embeds2.copy()
@@ -220,6 +220,7 @@ if __name__ == '__main__':
         plt.plot(range(1, len(logbk['validation_losses']) + 1), logbk['validation_losses'], 'r', lw=1, label='validation')
         plt.ylabel('Loss'); plt.xlabel('Epoch')
         ax.legend()
+        #plt.show()
         fig.savefig(os.path.join(args.odir, 'loss.jpg'))
         plt.close(fig)
 
