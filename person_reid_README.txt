@@ -19,7 +19,7 @@ Currently saved at /data/IUV-densepose/MSMT17_V1/precomputed
 
 example-siamese.py  Example siamese ent.
 
-example_basic_train.py  Example basic training.
+example_basic_train.py  Example basic training. There's a newer training script e.g. train_msmt17.py
 
 train_msmt17.py         Training.
 overfit:
