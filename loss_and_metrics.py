@@ -146,7 +146,7 @@ class ContrastiveLoss(torch.nn.Module):
 
 class Adaptive_Double_Margin_Contrastive_Loss(torch.nn.Module):
     
-    def __init__(self, option='cosine', **kwargs):
+    def __init__(self, option, **kwargs):
         # To know what to input in kwargs, see the code of the loss function you're choosing.
         super(ContrastiveLoss, self).__init__()
         if option == 'euclidean':
