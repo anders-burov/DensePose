@@ -148,6 +148,7 @@ class Dataset_Test(torch.utils.data.Dataset):
             glabels: pids of gallery people e.g. [12, 44, 55, 37, 897, 1034, ... ]
             plabels: pids of probe people e.g. [12, 44, 55, 37]
         """
+        raise Exception("This is an older implementation of Dataset class.")
         super(Dataset_Test, self).__init__()
         assert(all([pid == glabels[i] for i, pid in enumerate(plabels)]))
         self.glabels = list(glabels) # deep-copy or convert to list
@@ -296,3 +297,41 @@ class Dataset_msmt17(torch.utils.data.Dataset):
         target_neg = 0
         #
         return S_pos1, S_pos2, S_neg1, S_neg2, target_pos, target_neg, interx_amt_pos_pair, interx_amt_neg_pair, mask_pos_pair, mask_neg_pair, pos_pid, neg_pid
+
+
+
+
+class Dataset_msmt17_testprecomputed(torch.utils.data.Dataset):
+    def __init__(self, precomputed_path=None, setid=None, pids_allowed=None, dataload=None):
+        """
+        Args:
+            precomputed_path: E.g. '/data/IUV-densepose/MSMT17_V1/precomputed'
+            setid: set id. 0, 1, 2... , 9 or 10.
+            pids_allowed: e.g. [0,1,2,3,..., 3059]
+            dataload: A MSMT17_V1_Load_Data_Utils object.
+        """
+        super(Dataset_msmt17_testprecomputed, self).__init__()
+        if dataload is None:
+            dataload = msmt17_v1_utils.MSMT17_V1_Load_Data_Utils(images_train_dir='/data/MSMT17_V1/train', 
+                                                            images_test_dir='/data/MSMT17_V1/test', 
+                                                            denseposeoutput_train_dir='/data/IUV-densepose/MSMT17_V1/train', 
+                                                            denseposeoutput_test_dir='/data/IUV-densepose/MSMT17_V1/test')
+        self.dataload = dataload
+        self.setid = setid
+        self.precomputed_path = precomputed_path
+        if pids_allowed is None:
+            pids_allowed = tuple(range(dataload.test_persons_cnt))
+        self.pids_allowed = pids_allowed
+        assert(max(pids_allowed) < dataload.test_persons_cnt and 
+               min(pids_allowed) > -1 and
+               len(pids_allowed) <= dataload.test_persons_cnt)
+
+    def __len__(self):
+        return len(self.pids_allowed)
+
+    def __getitem__(self, index):
+        pid = self.pids_allowed[index]
+        IUVs = np.load(os.path.join(self.precomputed_path, str(self.setid), str(pid)+'.npz'  ))
+        S1 = preprocess_IUV_stack(IUVs['S1'])
+        S2 = preprocess_IUV_stack(IUVs['S2'])
+        return S1, S2

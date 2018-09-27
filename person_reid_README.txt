@@ -29,8 +29,13 @@ Example of real training:
 $ python train_msmt17.py --odir="expt-32-twomarg-0.1-0.7-nomask" --device="cuda:3" --batch_size 32 --num_worker 8 --overfit 0
 
 test_MSMT17_v2.py
-For testing net.
+For testing net. Apply intersection mask.
 $ python test_MSMT17_v2.py --net="expt-32-twomarg-0.1-0.7/net-ep-40.chkpt" --pos_margin=0.1 --neg_margin=0.7 --odir="tmp/p0.1n0.1ep40" --n_probes=50 --n_gallery=450 --batch_size=25 --num_worker=8
+
+test_MSMT17_v3.py
+For testing net. No application of intersection mask. Does 3060x3060 comparisons in test dir.
+$ python test_MSMT17_v3.py --net="expt-32-twomarg-0.1-0.7/net-ep-40.chkpt" --pos_margin=0.1 --neg_margin=0.7 --odir="tmp/p0.1n0.1ep40" --batch_size=80 --num_worker=8 --device="cpu"
+
 
 Compute ROC, DET:
 $ pip install pyeer
