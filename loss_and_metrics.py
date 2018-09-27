@@ -58,6 +58,43 @@ def test_two_margin_cosine_embedding_loss():
         assert(np.abs(d.numpy()) < 1e-6)
 
 
+def adaptive_margins(confidence, type, **kwargs):
+    # Args:
+    #  confidence: numpy array or torch tensor. shape (n_samps,). Range: [0,1] reals.
+    #  type: see code below.
+    #  kwargs: see code below.
+    # Returns:
+    #  positive_margins: numpy array or torch tensor. shape (n_samps,).
+    #  negative_margins: same as positive_margins.
+    if type == 'cosine':
+        posmax_rad = kwargs['max_positive_margin_angle_rad'] # Range should be 0 to 90 degrees == 0 to pi/2 radians.
+        posmin_rad = kwargs['min_positive_margin_angle_rad']
+        negmax_rad = kwargs['max_negative_margin_angle_rad']
+        negmin_rad = kwargs['min_negative_margin_angle_rad']
+        g1 = 1.0 * (posmin_rad - posmax_rad)
+        g2 = 1.0 * (negmin_rad - negmax_rad)
+        positive_margin_rad = g1 * confidence + posmax_rad
+        negative_margin_rad = g2 * confidence + negmax_rad
+        positive_margin = 1 - np.cos(positive_margin_rad)
+        negative_margin = np.cos(np.deg2rad(90) - negative_margin_rad)
+        return positive_margin, negative_margin
+    else:
+        raise NotImplementedError
+
+
+def test_adaptive_margins():
+    confidences = np.array([0.0, 0.2, 0.5, 0.75, 1.0])
+    kwargs = {'max_positive_margin_angle_rad':np.deg2rad(90),
+              'min_positive_margin_angle_rad':np.deg2rad(5),
+              'max_negative_margin_angle_rad':np.deg2rad(90),
+              'min_negative_margin_angle_rad':np.deg2rad(20)}
+    positive_margins, negative_margins = adaptive_margins(confidences, 'cosine', **kwargs)
+    print('test_adaptive_margins() ...')
+    print(positive_margins, negative_margins)
+    assert(all(x > xnext for x, xnext in zip(positive_margins, positive_margins[1:])))
+    assert(all(x > xnext for x, xnext in zip(negative_margins, negative_margins[1:])))
+
+
 class ContrastiveLoss(torch.nn.Module):
     """
     Contrastive loss function.
