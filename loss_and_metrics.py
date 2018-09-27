@@ -144,6 +144,42 @@ class ContrastiveLoss(torch.nn.Module):
             raise Exception('No such option.')
 
 
+class Adaptive_Double_Margin_Contrastive_Loss(torch.nn.Module):
+    
+    def __init__(self, option='cosine', **kwargs):
+        # To know what to input in kwargs, see the code of the loss function you're choosing.
+        super(ContrastiveLoss, self).__init__()
+        if option == 'euclidean':
+            raise NotImplementedError
+        elif option == 'adaptive double margin cosine':
+            test_adaptive_margins()
+            self.kwargs = kwargs
+        else:
+            raise Exception('No such option.')
+        self.option = option
+
+    def check_type_forward(self, in_types):
+        assert len(in_types) == 4
+        x0_type, x1_type, y_type confi_type = in_types
+        assert x0_type.size() == x1_type.shape
+        assert confi_type.size() == y_type.shape
+        assert x1_type.size()[0] == y_type.shape[0]
+        assert x1_type.size()[0] > 0
+        assert x0_type.dim() == 2
+        assert x1_type.dim() == 2
+        assert y_type.dim() == 1
+
+    def forward(self, x0, x1, y, confidence):
+        self.check_type_forward((x0, x1, y, confidence))
+        if self.option == 'adaptive double margin cosine':
+            pos_margin, neg_margin = adaptive_margins(confidence, 'cosine', **self.kwargs)
+            return two_margin_cosine_embedding_loss(x0, x1, y, pos_margin=pos_margin, neg_margin=neg_margin)
+        else:
+            raise Exception('No such option.')
+
+
+
+
 def scores(embeds1, embeds2, metric):
     # embeds1 and embeds2 are numpy arrays of shape (n_samples, n_features)
     # where embeds1[i,:] and embeds2[i,:] represent embeddings from
