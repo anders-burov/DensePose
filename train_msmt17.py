@@ -73,7 +73,7 @@ if __name__ == '__main__':
     device = torch.device(args.device if torch.cuda.is_available() else "cpu")
     print('Actual device: ', device)
     
-    load_net_path = '' #'net-ep-2.chkpt'
+    # load_net_path = '' #'net-ep-2.chkpt'
     resnet_args = {'block':resnet_custom.BasicBlock, 
                    'layers':[2, 2, 2, 2], 
                    'inplanes':256,
@@ -83,10 +83,11 @@ if __name__ == '__main__':
     print('resnet_args:', resnet_args)
     # net = resnet_custom.resnet18(input_channels=24*3, num_classes=256)
     net = resnet_custom.ResNet(**resnet_args)
+    torch.save(net, os.path.join(args.odir, 'net-{}.pt'.format(script_start_time)))
     net = Siamese_Net(net)
-    if load_net_path:
-        net.load_state_dict(torch.load(load_net_path))
-    net = net.to(device)
+    # if load_net_path:
+    #     net.load_state_dict(torch.load(load_net_path))
+    # net = net.to(device)
 
     contrastive_loss = ContrastiveLoss(option='two margin cosine', pos_margin=0.1, neg_margin=0.7)
     distance_type = 'cosine'

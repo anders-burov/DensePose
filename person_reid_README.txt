@@ -34,7 +34,9 @@ $ python test_MSMT17_v2.py --net="expt-32-twomarg-0.1-0.7/net-ep-40.chkpt" --pos
 
 test_MSMT17_v3.py
 For testing net. No application of intersection mask. Does 3060x3060 comparisons in test dir.
-$ python test_MSMT17_v3.py --net="expt-32-twomarg-0.1-0.7/net-ep-40.chkpt" --pos_margin=0.1 --neg_margin=0.7 --odir="tmp/p0.1n0.1ep40" --batch_size=80 --num_worker=8 --device="cpu"
+$ python test_MSMT17_v3.py --net="expt-32-twomarg-0.1-0.7/net-09-20-14-31-52.pt" --chkpt="expt-32-twomarg-0.1-0.7/net-ep-40.chkpt" --pos_margin=0.1 --neg_margin=0.7 --odir="tmp/p0.1n0.1ep40" --batch_size=80 --num_worker=8 --device="cpu"
+
+
 
 
 Compute ROC, DET:

@@ -41,7 +41,9 @@ if __name__ == '__main__':
     parser.add_argument('--num_workers', type=int, default=1,
                         help='num workers on dataloader.')
     parser.add_argument('--net', type=str, default=None,
-                        help='path to network. e.g. \"expt-32-twomarg-0.1-0.7/net-ep-20.chkpt\"')
+                        help='path to network architecture. e.g. \"expt-32-twomarg-0.1-0.7/net-09-20-14-31-52.pt\"')
+    parser.add_argument('--chkpt', type=str, default=None,
+                        help='path to network\'s checkpoint. e.g. \"expt-32-twomarg-0.1-0.7/net-ep-20.chkpt\"')
     parser.add_argument('--contrastlossopt', type=str, default="two margin cosine",
                         help='e.g. \"two margin cosine\"')
     parser.add_argument('--pos_margin', type=float, default=None,
@@ -70,7 +72,15 @@ if __name__ == '__main__':
     print(loss.__dict__)
 
     # Load net:
-    net = resnet_custom.resnet18(input_channels=24*3, num_classes=256)
+    resnet_args = {'block':resnet_custom.BasicBlock, 
+                   'layers':[2, 2, 2, 2], 
+                   'inplanes':256,
+                   'planes_of_layers':(256, 512, 1024, 2048),
+                   'input_channels':24*3,
+                   'num_classes':256}
+    print('resnet_args:', resnet_args)
+    net = resnet_custom.ResNet(**resnet_args)
+    # net = resnet_custom.resnet18(input_channels=24*3, num_classes=256)
     net = Siamese_Net(net)
     net.load_state_dict(torch.load(args.net))
     net = net.to(device)
