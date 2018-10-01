@@ -74,7 +74,7 @@ if __name__ == '__main__':
     net = Siamese_Net(net)
     net.load_state_dict(torch.load(args.net))
     net = net.to(device)
-    net.eval()
+    net.eval()  # IMPT #
     
     pids_allowed = list(range(dataload.test_persons_cnt))
     # pids_allowed = [0,1,2,3] # For testing.
