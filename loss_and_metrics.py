@@ -1,12 +1,8 @@
 from __future__ import print_function
-import math
-import random
-import os
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.metrics.pairwise import pairwise_distances
 import torch
-import torch.nn as nn
 
 def two_margin_cosine_embedding_loss(input1, input2, target, pos_margin=0.0, neg_margin=0.0):
     # Computes cosine loss with soft margins for positive and negative samples.
@@ -46,7 +42,7 @@ def two_margin_cosine_embedding_loss(input1, input2, target, pos_margin=0.0, neg
 
 
 def test_two_margin_cosine_embedding_loss():
-    for repeat in range(100):
+    for _ in range(100):
         i1 = torch.randn(10, 2)  * torch.randint(2, 100, (10,2))
         i2 = torch.randn(10, 2) * torch.randint(2, 100, (10,2))
         y = torch.randint(0, 2, (10,))
@@ -58,15 +54,15 @@ def test_two_margin_cosine_embedding_loss():
         assert(np.abs(d.numpy()) < 1e-6)
 
 
-def adaptive_margins(confidence, type, **kwargs):
+def adaptive_margins(confidence, option, **kwargs):
     # Args:
     #  confidence: numpy array or torch tensor. shape (n_samps,). Range: [0,1] reals.
-    #  type: see code below.
+    #  option: see code below.
     #  kwargs: see code below.
     # Returns:
     #  positive_margins: numpy array or torch tensor. shape (n_samps,).
     #  negative_margins: same as positive_margins.
-    if type == 'cosine':
+    if option == 'cosine':
         posmax_rad = kwargs['max_positive_margin_angle_rad'] # Range should be 0 to 90 degrees == 0 to pi/2 radians.
         posmin_rad = kwargs['min_positive_margin_angle_rad']
         negmax_rad = kwargs['max_negative_margin_angle_rad']
@@ -148,7 +144,7 @@ class Adaptive_Double_Margin_Contrastive_Loss(torch.nn.Module):
     
     def __init__(self, option, **kwargs):
         # To know what to input in kwargs, see the code of the loss function you're choosing.
-        super(ContrastiveLoss, self).__init__()
+        super(Adaptive_Double_Margin_Contrastive_Loss, self).__init__()
         if option == 'euclidean':
             raise NotImplementedError
         elif option == 'adaptive double margin cosine':
@@ -160,7 +156,7 @@ class Adaptive_Double_Margin_Contrastive_Loss(torch.nn.Module):
 
     def check_type_forward(self, in_types):
         assert len(in_types) == 4
-        x0_type, x1_type, y_type confi_type = in_types
+        x0_type, x1_type, y_type, confi_type = in_types
         assert x0_type.size() == x1_type.shape
         assert confi_type.size() == y_type.shape
         assert x1_type.size()[0] == y_type.shape[0]

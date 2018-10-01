@@ -1,22 +1,20 @@
 from __future__ import print_function
-import math
-import random
+# import math
+# import random
 import os
 import argparse
 import pickle
 import torch
-import torch.nn as nn
+# import torch.nn as nn
 import numpy as np
 from person_reid_nets import Siamese_Net
-import torchvision.models as models
+# import torchvision.models as models
 # from torchsummary import summary    # sigh not working on pyhon 2.7 Sep 2018
-from loss_and_metrics import ContrastiveLoss, scores, plot_scores
-import torch.optim as optim
-import torchvision.models as models
+from loss_and_metrics import ContrastiveLoss, scores #, plot_scores
+# import torch.optim as optim
 from datetime import datetime
 from sklearn.metrics.pairwise import pairwise_distances
 import matplotlib.pyplot as plt
-from person_reid_nets import Siamese_Net
 import resnet_custom
 import msmt17_v1_utils
 from IUV_stack_utils import *  #TODO
@@ -43,7 +41,9 @@ if __name__ == '__main__':
     parser.add_argument('--num_workers', type=int, default=1,
                         help='num workers on dataloader.')
     parser.add_argument('--net', type=str, default=None,
-                        help='path to network. e.g. \"expt-32-twomarg-0.1-0.7/net-ep-20.chkpt\"')
+                        help='path to network architecture. e.g. \"expt-32-twomarg-0.1-0.7/net-09-20-14-31-52.pt\"')
+    parser.add_argument('--chkpt', type=str, default=None,
+                        help='path to network\'s checkpoint. e.g. \"expt-32-twomarg-0.1-0.7/net-ep-20.chkpt\"')
     parser.add_argument('--contrastlossopt', type=str, default="two margin cosine",
                         help='e.g. \"two margin cosine\"')
     parser.add_argument('--pos_margin', type=float, default=None,
@@ -72,13 +72,25 @@ if __name__ == '__main__':
     print(loss.__dict__)
 
     # Load net:
-    net = resnet_custom.resnet18(input_channels=24*3, num_classes=256)
-    net = Siamese_Net(net)
-    net.load_state_dict(torch.load(args.net))
+    # resnet_args = {'block':resnet_custom.BasicBlock, 
+    #                'layers':[2, 2, 2, 2], 
+    #                'inplanes':256,
+    #                'planes_of_layers':(256, 512, 1024, 2048),
+    #                'input_channels':24*3,
+    #                'num_classes':256}
+    # print('resnet_args:', resnet_args)
+    # net = resnet_custom.ResNet(**resnet_args)
+    if args.net is not None:
+        net = torch.load(args.net)
+    else:
+        net = resnet_custom.resnet18(input_channels=24*3, num_classes=256)
+    net.load_state_dict(torch.load(args.chkpt))
+    net = Siamese_Net(net)   # TODO can remove eventually as siamese-izing a net is for training only.
     net = net.to(device)
-    net.eval()
+    net.eval()  # IMPT #
     
-    pids_allowed = tuple(range(dataload.test_persons_cnt))
+    pids_allowed = list(range(dataload.test_persons_cnt))
+    # pids_allowed = [0,1,2,3] # For testing.
     similarity_mat = np.zeros((len(pids_allowed), len(pids_allowed)))
 
     dataset = msmt17_v1_utils.Dataset_msmt17_testprecomputed(precomputed_path=args.idir, 
@@ -102,6 +114,8 @@ if __name__ == '__main__':
             embs_1, embs_2 = net(S1s, S2s)
             all_embs_1.append(embs_1)
             all_embs_2.append(embs_2)
+    all_embs_1 = np.concatenate(all_embs_1)
+    all_embs_2 = np.concatenate(all_embs_2)
     score_mat, genuine_scores, imposter_scores = scores(all_embs_1, all_embs_2, args.distance_type)
     logbk['similarity_mat'] = score_mat
     logbk['genuine_scores'] = genuine_scores
@@ -110,9 +124,11 @@ if __name__ == '__main__':
     # Plot CMC:
     distmat = 1 - logbk['similarity_mat']
     cmc_values = cmc_count(distmat=distmat, glabels=pids_allowed, plabels=pids_allowed, n_selected_labels=None, n_repeat=1)
-    print(cmc_values)
     try:
+        print('CMC values ranked 1 to 80:', cmc_values[:80])
         print('Rank 1,5,10,20:', cmc_values[[0,4,9,19]])
+    except:
+        print('CMC:', cmc_values)
     fig = plt.figure()
     ax = fig.gca()
     plt.title('CMC')
