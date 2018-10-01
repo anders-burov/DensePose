@@ -1,22 +1,20 @@
 from __future__ import print_function
-import math
-import random
+# import math
+# import random
 import os
 import argparse
 import pickle
 import torch
-import torch.nn as nn
+# import torch.nn as nn
 import numpy as np
 from person_reid_nets import Siamese_Net
-import torchvision.models as models
+# import torchvision.models as models
 # from torchsummary import summary    # sigh not working on pyhon 2.7 Sep 2018
-from loss_and_metrics import ContrastiveLoss, scores, plot_scores
-import torch.optim as optim
-import torchvision.models as models
+from loss_and_metrics import ContrastiveLoss, scores #, plot_scores
+# import torch.optim as optim
 from datetime import datetime
 from sklearn.metrics.pairwise import pairwise_distances
 import matplotlib.pyplot as plt
-from person_reid_nets import Siamese_Net
 import resnet_custom
 import msmt17_v1_utils
 from IUV_stack_utils import *  #TODO
@@ -79,6 +77,9 @@ if __name__ == '__main__':
     net.eval()
     
     pids_allowed = tuple(range(dataload.test_persons_cnt))
+    
+    pids_allowed = (0,1,2,3) # TODO!
+
     similarity_mat = np.zeros((len(pids_allowed), len(pids_allowed)))
 
     dataset = msmt17_v1_utils.Dataset_msmt17_testprecomputed(precomputed_path=args.idir, 
@@ -110,9 +111,11 @@ if __name__ == '__main__':
     # Plot CMC:
     distmat = 1 - logbk['similarity_mat']
     cmc_values = cmc_count(distmat=distmat, glabels=pids_allowed, plabels=pids_allowed, n_selected_labels=None, n_repeat=1)
-    print(cmc_values)
     try:
+        print('CMC values ranked 1 to 80:', cmc_values[:80])
         print('Rank 1,5,10,20:', cmc_values[[0,4,9,19]])
+    except:
+        print('CMC:', cmc_values)
     fig = plt.figure()
     ax = fig.gca()
     plt.title('CMC')

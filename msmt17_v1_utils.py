@@ -235,7 +235,7 @@ class Dataset_msmt17(torch.utils.data.Dataset):
         """
         super(Dataset_msmt17, self).__init__()
         if dataload is None:
-            dataload = msmt17_v1_utils.MSMT17_V1_Load_Data_Utils(images_train_dir='/data/MSMT17_V1/train', 
+            dataload = MSMT17_V1_Load_Data_Utils(images_train_dir='/data/MSMT17_V1/train', 
                                                             images_test_dir='/data/MSMT17_V1/test', 
                                                             denseposeoutput_train_dir='/data/IUV-densepose/MSMT17_V1/train', 
                                                             denseposeoutput_test_dir='/data/IUV-densepose/MSMT17_V1/test')
@@ -312,7 +312,7 @@ class Dataset_msmt17_testprecomputed(torch.utils.data.Dataset):
         """
         super(Dataset_msmt17_testprecomputed, self).__init__()
         if dataload is None:
-            dataload = msmt17_v1_utils.MSMT17_V1_Load_Data_Utils(images_train_dir='/data/MSMT17_V1/train', 
+            dataload = MSMT17_V1_Load_Data_Utils(images_train_dir='/data/MSMT17_V1/train', 
                                                             images_test_dir='/data/MSMT17_V1/test', 
                                                             denseposeoutput_train_dir='/data/IUV-densepose/MSMT17_V1/train', 
                                                             denseposeoutput_test_dir='/data/IUV-densepose/MSMT17_V1/test')
