@@ -72,17 +72,20 @@ if __name__ == '__main__':
     print(loss.__dict__)
 
     # Load net:
-    resnet_args = {'block':resnet_custom.BasicBlock, 
-                   'layers':[2, 2, 2, 2], 
-                   'inplanes':256,
-                   'planes_of_layers':(256, 512, 1024, 2048),
-                   'input_channels':24*3,
-                   'num_classes':256}
-    print('resnet_args:', resnet_args)
-    net = resnet_custom.ResNet(**resnet_args)
-    # net = resnet_custom.resnet18(input_channels=24*3, num_classes=256)
-    net = Siamese_Net(net)
-    net.load_state_dict(torch.load(args.net))
+    # resnet_args = {'block':resnet_custom.BasicBlock, 
+    #                'layers':[2, 2, 2, 2], 
+    #                'inplanes':256,
+    #                'planes_of_layers':(256, 512, 1024, 2048),
+    #                'input_channels':24*3,
+    #                'num_classes':256}
+    # print('resnet_args:', resnet_args)
+    # net = resnet_custom.ResNet(**resnet_args)
+    if args.net is not None:
+        net = torch.load(args.net)
+    else:
+        net = resnet_custom.resnet18(input_channels=24*3, num_classes=256)
+    net.load_state_dict(torch.load(args.chkpt))
+    net = Siamese_Net(net)   # TODO can remove eventually as siamese-izing a net is for training only.
     net = net.to(device)
     net.eval()  # IMPT #
     
