@@ -5,6 +5,7 @@ import numpy as np
 import cv2
 import random
 import torch
+import torch.utils.data
 from IUV_stack_utils import inds_value_of_most_prominent_person, \
                             IUV_with_only_this_inds_value, \
                             create_IUVstack, \

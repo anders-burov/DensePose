@@ -76,10 +76,8 @@ if __name__ == '__main__':
     net = net.to(device)
     net.eval()
     
-    pids_allowed = tuple(range(dataload.test_persons_cnt))
-    
-    pids_allowed = (0,1,2,3) # TODO!
-
+    pids_allowed = list(range(dataload.test_persons_cnt))
+    # pids_allowed = [0,1,2,3] # For testing.
     similarity_mat = np.zeros((len(pids_allowed), len(pids_allowed)))
 
     dataset = msmt17_v1_utils.Dataset_msmt17_testprecomputed(precomputed_path=args.idir, 
@@ -103,6 +101,8 @@ if __name__ == '__main__':
             embs_1, embs_2 = net(S1s, S2s)
             all_embs_1.append(embs_1)
             all_embs_2.append(embs_2)
+    all_embs_1 = np.concatenate(all_embs_1)
+    all_embs_2 = np.concatenate(all_embs_2)
     score_mat, genuine_scores, imposter_scores = scores(all_embs_1, all_embs_2, args.distance_type)
     logbk['similarity_mat'] = score_mat
     logbk['genuine_scores'] = genuine_scores
